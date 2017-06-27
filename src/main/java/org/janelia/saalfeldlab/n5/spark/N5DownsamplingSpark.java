@@ -19,6 +19,7 @@ import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.cell.CellGrid;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
@@ -152,7 +153,11 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 				final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
 				final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
 				Downsample.downsample( source, target, downsamplingFactors );
-				final long[] gridPosition = cellCoordinatesToGridPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), cellSize );
+
+				final long[] gridPosition = new long[ dim ];
+				final CellGrid cellGrid = new CellGrid( downsampledDimensions, cellSize );
+				cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
+
 				N5Utils.saveBlock( target, n5Local, scaleLevelPath, gridPosition );
 			} );
 
@@ -243,7 +248,11 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 				final RandomAccessibleInterval< T > source = Views.offsetInterval( xyScaleLevelImg, sourceAndTargetInterval._1() );
 				final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
 				Downsample.downsample( source, target, downsamplingFactors );
-				final long[] gridPosition = cellCoordinatesToGridPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), cellSize );
+
+				final long[] gridPosition = new long[ dim ];
+				final CellGrid cellGrid = new CellGrid( downsampledDimensions, cellSize );
+				cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
+
 				N5Utils.saveBlock( target, n5Local, scaleLevelPath, gridPosition );
 			} );
 		}
@@ -270,13 +279,5 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 		final int fullScaleOptimalCellSize = ( int ) Math.round( cellSizeXY / pixelResolutionZToXY );
 		final int zCellSize = ( fullScaleOptimalCellSize << scaleLevel ) / zDownsamplingFactor;
 		return new Tuple2<>( zCellSize, zDownsamplingFactor );
-	}
-
-	private static long[] cellCoordinatesToGridPosition( final long[] cellCoordinates, final int[] cellSize )
-	{
-		final long[] gridPosition = new long[ cellCoordinates.length ];
-		for ( int d = 0; d < gridPosition.length; d++ )
-			gridPosition[ d ] = cellCoordinates[ d ] / cellSize[ d ];
-		return gridPosition;
 	}
 }
