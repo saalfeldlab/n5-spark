@@ -21,7 +21,7 @@ public class N5DownsamplingSparkTest
 	static private final String testDirPath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
 
 	@Test
-	public void testIsotropicDownsampling() throws IOException
+	public void test() throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( testDirPath );
 		final long[] dimensions = new long[] { 4, 4, 4 };

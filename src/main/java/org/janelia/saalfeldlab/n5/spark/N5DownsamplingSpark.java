@@ -30,18 +30,47 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 {
 	private final transient JavaSparkContext sparkContext;
 
+	/**
+	 * Takes an existing spark context to run the downsampling code.
+	 * Assumes that the spark context is instantiated using Kryo serializer (see {@link N5DownsamplingSparkTest} for reference)
+	 * as the downsampling code serializes objects of type {@link Interval}.
+	 *
+	 * @param sparkContext
+	 */
 	public N5DownsamplingSpark( final JavaSparkContext sparkContext )
 	{
 		this.sparkContext = sparkContext;
 	}
 
-	// NOTE: assumes that pixelResolutionX = pixelResolutionY
-
+	/**
+	 * Generates lower scale levels for a given dataset. Each scale level is downsampled by 2 in all dimensions.
+	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
+	 * Reuses the block size of the given dataset.
+	 *
+	 * @param basePath Path to the N5 root
+	 * @param datasetPath Path to the full-scale dataset
+	 */
 	public void downsample( final String basePath, final String datasetPath ) throws IOException
 	{
-		downsample( basePath, datasetPath, null );
+		// TODO: do not generate intermediate downsampled XY exports
+		downsampleIsotropic( basePath, datasetPath, null );
 	}
-	public void downsample( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
+
+	/**
+	 * <p>
+	 * Generates lower scale levels for a given dataset.
+	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
+	 * </p><p>
+	 * Assumes that the pixel resolution is the same in X and Y.
+	 * Each scale level is downsampled by 2 in XY, and by the corresponding factors in Z to be as close as possible to isotropic.
+	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
+	 * </p>
+	 *
+	 * @param basePath Path to the N5 root
+	 * @param datasetPath Path to the full-scale dataset
+	 * @param voxelDimensions Pixel resolution of the data
+	 */
+	public void downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
 	{
 		final double pixelResolutionZToXY = ( voxelDimensions != null ? getPixelResolutionZtoXY( voxelDimensions ) : 1 );
 		downsampleXY( basePath, datasetPath );
