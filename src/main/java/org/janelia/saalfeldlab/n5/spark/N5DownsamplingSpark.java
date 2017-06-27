@@ -50,11 +50,13 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 	 *
 	 * @param basePath Path to the N5 root
 	 * @param datasetPath Path to the full-scale dataset
+	 *
+	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public void downsample( final String basePath, final String datasetPath ) throws IOException
+	public double[][] downsample( final String basePath, final String datasetPath ) throws IOException
 	{
 		// TODO: do not generate intermediate downsampled XY exports
-		downsampleIsotropic( basePath, datasetPath, null );
+		return downsampleIsotropic( basePath, datasetPath, null );
 	}
 
 	/**
@@ -70,17 +72,26 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 	 * @param basePath Path to the N5 root
 	 * @param datasetPath Path to the full-scale dataset
 	 * @param voxelDimensions Pixel resolution of the data
+	 *
+	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public void downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
+	public double[][] downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
 	{
 		final double pixelResolutionZToXY = ( voxelDimensions != null ? getPixelResolutionZtoXY( voxelDimensions ) : 1 );
-		downsampleXY( basePath, datasetPath );
-		downsampleZ( basePath, datasetPath, pixelResolutionZToXY );
+
+		final List< int[] > scalesXY = downsampleXY( basePath, datasetPath );
+		final List< int[] > scalesZ  = downsampleZ ( basePath, datasetPath, pixelResolutionZToXY );
 		deleteXY( basePath, datasetPath );
+
+		final List< double[] > scales = new ArrayList<>();
+		scales.add( new double[] { 1, 1, 1 } );
+		for ( int s = 0; s < Math.min( scalesXY.size(), scalesZ.size() ); ++s )
+			scales.add( new double[] { scalesXY.get( s )[ 0 ], scalesXY.get( s )[ 1 ], scalesZ.get( s )[ 2 ] } );
+		return scales.toArray( new double[ 0 ][] );
 	}
 
 	// TODO: unify with downsampleZ as these two methods share a lot of similar code
-	private void downsampleXY(final String basePath, final String datasetPath ) throws IOException
+	private List< int[] > downsampleXY(final String basePath, final String datasetPath ) throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
@@ -91,10 +102,14 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 		final String rootOutputPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
 		final String xyGroupPath = Paths.get( rootOutputPath, "xy" ).toString();
 		n5.createGroup( xyGroupPath );
-		// loop over scale levels
+
 		String previousScaleLevel = datasetPath;
 		final long[] previousDimensions = fullScaleDimensions.clone();
 		final long[] downsampledDimensions = new long[ dim ];
+
+		final List< int[] > downsamplingFactorsForScales = new ArrayList<>();
+
+		// loop over scale levels
 		for ( int scaleLevel = 1; ; ++scaleLevel )
 		{
 			for ( int i = 0; i < 2; i++ )
@@ -142,6 +157,8 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 			for ( int i = 0; i < 2; i++ )
 				downsamplingFactors[ i ] = 2;
 
+			downsamplingFactorsForScales.add( downsamplingFactors );
+
 			final String previousScaleLevelSpark = previousScaleLevel;
 			sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
 			{
@@ -164,14 +181,18 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 			previousScaleLevel = scaleLevelPath;
 			System.arraycopy( downsampledDimensions, 0, previousDimensions, 0, downsampledDimensions.length );
 		}
+
+		return downsamplingFactorsForScales;
 	}
 
 	// TODO: unify with downsampleXY as these two methods share a lot of similar code
-	private void downsampleZ(final String basePath, final String datasetPath, final double pixelResolutionZToXY ) throws IOException
+	private List< int[] > downsampleZ(final String basePath, final String datasetPath, final double pixelResolutionZToXY ) throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		final String rootOutputPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
 		final String xyGroupPath = Paths.get( rootOutputPath, "xy" ).toString();
+
+		final List< int[] > downsamplingFactorsForScales = new ArrayList<>();
 
 		// loop over scale levels
 		for ( int scaleLevel = 1; ; ++scaleLevel )
@@ -238,6 +259,8 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 			for ( int i = 2; i < dim; ++i )
 				downsamplingFactors[ i ] = zCellSizeAndDownsamplingFactor._2();
 
+			downsamplingFactorsForScales.add( downsamplingFactors );
+
 			sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
 			{
 				final N5Writer n5Local = N5.openFSWriter( basePath );
@@ -256,6 +279,8 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 				N5Utils.saveBlock( target, n5Local, scaleLevelPath, gridPosition );
 			} );
 		}
+
+		return downsamplingFactorsForScales;
 	}
 
 	private void deleteXY( final String basePath, final String datasetPath ) throws IOException

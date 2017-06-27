@@ -26,6 +26,8 @@ public class N5DownsamplingSparkTest
 	static private final String basePath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
 	static private final String datasetPath = "data";
 
+	static private final double EPSILON = 1e-10;
+
 	private JavaSparkContext sparkContext;
 
 	@Before
@@ -71,7 +73,11 @@ public class N5DownsamplingSparkTest
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		createDataset( n5 );
 
-		new N5DownsamplingSpark<>( sparkContext ).downsample( basePath, datasetPath );
+		final double[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsample( basePath, datasetPath );
+
+		Assert.assertTrue( scales.length == 2 );
+		Assert.assertArrayEquals( new double[] { 1, 1, 1 }, scales[ 0 ], EPSILON );
+		Assert.assertArrayEquals( new double[] { 2, 2, 2 }, scales[ 1 ], EPSILON );
 
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 
@@ -81,6 +87,9 @@ public class N5DownsamplingSparkTest
 				n5.datasetExists( downsampledDatasetPath ) );
 
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
+		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, downsampledAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, downsampledAttributes.getBlockSize() );
+
 		for ( final byte zCoord : new byte[] { 0, 1 } )
 		{
 			final byte zOffset = ( byte ) ( zCoord * 32 );
@@ -100,7 +109,11 @@ public class N5DownsamplingSparkTest
 		createDataset( n5 );
 
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
-		new N5DownsamplingSpark<>( sparkContext ).downsampleIsotropic( basePath, datasetPath, voxelSize );
+		final double[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsampleIsotropic( basePath, datasetPath, voxelSize );
+
+		Assert.assertTrue( scales.length == 2 );
+		Assert.assertArrayEquals( new double[] { 1, 1, 1 }, scales[ 0 ], EPSILON );
+		Assert.assertArrayEquals( new double[] { 2, 2, 1 }, scales[ 1 ], EPSILON );
 
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 
@@ -110,6 +123,9 @@ public class N5DownsamplingSparkTest
 				n5.datasetExists( downsampledDatasetPath ) );
 
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
+		Assert.assertArrayEquals( new long[] { 2, 2, 4 }, downsampledAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 1, 1, 2 }, downsampledAttributes.getBlockSize() );
+
 		for ( final byte zCoord : new byte[] { 0, 1 } )
 		{
 			final byte zOffset = ( byte ) ( zCoord * 32 );
