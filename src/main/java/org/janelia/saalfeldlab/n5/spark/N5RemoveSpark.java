@@ -13,6 +13,13 @@ import org.janelia.saalfeldlab.n5.N5Writer;
 
 public class N5RemoveSpark
 {
+	/**
+	 * Removes an N5 group or dataset parallelizing over inner groups.
+	 *
+	 * @param sparkContext Spark context
+	 * @param basePath Path to the N5 root
+	 * @param datasetPath Path to a group or dataset to be removed
+	 */
 	public static void remove( final JavaSparkContext sparkContext, final String basePath, final String pathName ) throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
