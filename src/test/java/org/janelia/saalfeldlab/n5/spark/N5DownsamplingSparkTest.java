@@ -26,13 +26,14 @@ public class N5DownsamplingSparkTest
 	static private final String basePath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
 	static private final String datasetPath = "data";
 
-	static private final double EPSILON = 1e-10;
-
 	private JavaSparkContext sparkContext;
 
 	@Before
-	public void setUp()
+	public void setUp() throws IOException
 	{
+		// cleanup in case the test has failed
+		tearDown();
+
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local" )
 				.setAppName( "N5DownsamplingTest" )
@@ -43,9 +44,9 @@ public class N5DownsamplingSparkTest
 	@After
 	public void tearDown() throws IOException
 	{
-		sparkContext.close();
+		if ( sparkContext != null )
+			sparkContext.close();
 
-		// cleanup in case the test has failed
 		if ( Files.exists( Paths.get( basePath ) ) )
 			cleanup( N5.openFSWriter( basePath ) );
 	}
@@ -73,11 +74,11 @@ public class N5DownsamplingSparkTest
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		createDataset( n5 );
 
-		final double[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsample( basePath, datasetPath );
+		final int[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsample( basePath, datasetPath );
 
 		Assert.assertTrue( scales.length == 2 );
-		Assert.assertArrayEquals( new double[] { 1, 1, 1 }, scales[ 0 ], EPSILON );
-		Assert.assertArrayEquals( new double[] { 2, 2, 2 }, scales[ 1 ], EPSILON );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, scales[ 1 ] );
 
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 
@@ -93,10 +94,10 @@ public class N5DownsamplingSparkTest
 		for ( final byte zCoord : new byte[] { 0, 1 } )
 		{
 			final byte zOffset = ( byte ) ( zCoord * 32 );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( ( Math.round( zOffset + ( 0  + 1  + 4  + 5  ) / 4. ) + Math.round( zOffset + ( 16 + 17 + 20 + 21 ) / 4. ) ) / 2. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( ( Math.round( zOffset + ( 2  + 3  + 6  + 7  ) / 4. ) + Math.round( zOffset + ( 18 + 19 + 22 + 23 ) / 4. ) ) / 2. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( ( Math.round( zOffset + ( 8  + 9  + 12 + 13 ) / 4. ) + Math.round( zOffset + ( 24 + 25 + 28 + 29 ) / 4. ) ) / 2. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( ( Math.round( zOffset + ( 10 + 11 + 14 + 15 ) / 4. ) + Math.round( zOffset + ( 26 + 27 + 30 + 31 ) / 4. ) ) / 2. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
+			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 0  + 1  + 4  + 5  + 16 + 17 + 20 + 21 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
+			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 2  + 3  + 6  + 7  + 18 + 19 + 22 + 23 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
+			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 8  + 9  + 12 + 13 + 24 + 25 + 28 + 29 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
+			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 10 + 11 + 14 + 15 + 26 + 27 + 30 + 31 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
 		}
 
 		cleanup( n5 );
@@ -109,11 +110,11 @@ public class N5DownsamplingSparkTest
 		createDataset( n5 );
 
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
-		final double[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsampleIsotropic( basePath, datasetPath, voxelSize );
+		final int[][] scales = new N5DownsamplingSpark<>( sparkContext ).downsampleIsotropic( basePath, datasetPath, voxelSize );
 
 		Assert.assertTrue( scales.length == 2 );
-		Assert.assertArrayEquals( new double[] { 1, 1, 1 }, scales[ 0 ], EPSILON );
-		Assert.assertArrayEquals( new double[] { 2, 2, 1 }, scales[ 1 ], EPSILON );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, scales[ 1 ] );
 
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 

@@ -9,6 +9,7 @@ import java.util.List;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
+import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 
@@ -53,9 +54,8 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public double[][] downsample( final String basePath, final String datasetPath ) throws IOException
+	public int[][] downsample( final String basePath, final String datasetPath ) throws IOException
 	{
-		// TODO: do not generate intermediate downsampled XY exports
 		return downsampleIsotropic( basePath, datasetPath, null );
 	}
 
@@ -75,221 +75,147 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public double[][] downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
+	public int[][] downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
 	{
 		final double pixelResolutionZToXY = ( voxelDimensions != null ? getPixelResolutionZtoXY( voxelDimensions ) : 1 );
+		final boolean needIntermediateDownsamplingInXY = ( pixelResolutionZToXY != 1 );
 
-		final List< int[] > scalesXY = downsampleXY( basePath, datasetPath );
-		final List< int[] > scalesZ  = downsampleZ ( basePath, datasetPath, pixelResolutionZToXY );
-		deleteXY( basePath, datasetPath );
-
-		final List< double[] > scales = new ArrayList<>();
-		scales.add( new double[] { 1, 1, 1 } );
-		for ( int s = 0; s < Math.min( scalesXY.size(), scalesZ.size() ); ++s )
-			scales.add( new double[] { scalesXY.get( s )[ 0 ], scalesXY.get( s )[ 1 ], scalesZ.get( s )[ 2 ] } );
-		return scales.toArray( new double[ 0 ][] );
-	}
-
-	// TODO: unify with downsampleZ as these two methods share a lot of similar code
-	private List< int[] > downsampleXY(final String basePath, final String datasetPath ) throws IOException
-	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
-		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
-		final long[] fullScaleDimensions = attributes.getDimensions();
-		final int[] cellSize = attributes.getBlockSize();
-		final int dim = fullScaleDimensions.length;
+		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
+
+		final long[] fullScaleDimensions = fullScaleAttributes.getDimensions();
+		final int[] fullScaleCellSize = fullScaleAttributes.getBlockSize();
+
+		final List< int[] > scales = new ArrayList<>();
+		scales.add( new int[] { 1, 1, 1 } );
 
 		final String rootOutputPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
 		final String xyGroupPath = Paths.get( rootOutputPath, "xy" ).toString();
-		n5.createGroup( xyGroupPath );
-
-		String previousScaleLevel = datasetPath;
-		final long[] previousDimensions = fullScaleDimensions.clone();
-		final long[] downsampledDimensions = new long[ dim ];
-
-		final List< int[] > downsamplingFactorsForScales = new ArrayList<>();
 
 		// loop over scale levels
-		for ( int scaleLevel = 1; ; ++scaleLevel )
+		for ( int scale = 1; ; ++scale )
 		{
-			for ( int i = 0; i < 2; i++ )
-				downsampledDimensions[ i ] = fullScaleDimensions[ i ] >> scaleLevel;
-			System.arraycopy( fullScaleDimensions, 2, downsampledDimensions, 2, fullScaleDimensions.length - 2 );
+			final int[] cellSize = fullScaleCellSize.clone();
+			final Tuple2< Integer, Integer > zCellSizeAndScale = getOptimalZCellSizeAndDownsamplingFactor( scale, Math.max( cellSize[ 0 ], cellSize[ 1 ] ), pixelResolutionZToXY );
+			cellSize[ 2 ] = zCellSizeAndScale._1();
 
-			if ( Math.min( downsampledDimensions[ 0 ], downsampledDimensions[ 1 ] ) <= 1 || Math.max( downsampledDimensions[ 0 ], downsampledDimensions[ 1 ] ) <= Math.max( cellSize[ 0 ], cellSize[ 1 ] ) )
+			final int[] downsamplingFactors = new int[] { 1 << scale, 1 << scale, zCellSizeAndScale._2() };
+
+			final long[] downsampledDimensions = fullScaleDimensions.clone();
+			for ( int d = 0; d < downsampledDimensions.length; ++d )
+				downsampledDimensions[ d ] /= downsamplingFactors[ d ];
+
+			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() <= 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() <= Arrays.stream( cellSize ).max().getAsInt() )
 				break;
 
-			final String scaleLevelPath = Paths.get( xyGroupPath, "s" + scaleLevel ).toString();
-			n5.createDataset( scaleLevelPath, downsampledDimensions, cellSize, attributes.getDataType(), attributes.getCompressionType() );
-
-			final List< Tuple2< Interval, Interval > > sourceAndTargetIntervals = new ArrayList<>();
-			final long[] max = Intervals.maxAsLongArray( new FinalInterval( downsampledDimensions ) );
-			final long[] offset = new long[ dim ], sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
-			for ( int d = 0; d < dim; )
+			if ( !needIntermediateDownsamplingInXY )
 			{
-				for ( int i = 0; i < 2; i++ )
-				{
-					targetMin[ i ] = offset[ i ];
-					targetMax[ i ] = Math.min( targetMin[ i ] + cellSize[ i ] - 1, max[ i ] );
-					sourceMin[ i ] = targetMin[ i ] * 2;
-					sourceMax[ i ] = targetMax[ i ] * 2 + 1;
-				}
-				for ( int i = 2; i < dim; i++ )
-				{
-					targetMin[ i ] = sourceMin[ i ] = offset[ i ];
-					targetMax[ i ] = sourceMax[ i ] = Math.min( targetMin[ i ] + cellSize[ i ] - 1, max[ i ] );
-				}
+				// downsample in XYZ
+				final String inputDatasetPath = scale == 1 ? datasetPath : Paths.get( rootOutputPath, "s" + ( scale - 1 ) ).toString();
+				final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
+				n5.createDataset(
+						outputDatasetPath,
+						downsampledDimensions,
+						cellSize,
+						fullScaleAttributes.getDataType(),
+						fullScaleAttributes.getCompressionType()
+					);
+				downsample( basePath, inputDatasetPath, outputDatasetPath );
+			}
+			else
+			{
+				// downsample in XY
+				final String inputXYDatasetPath = scale == 1 ? datasetPath : Paths.get( xyGroupPath, "s" + ( scale - 1 ) ).toString();
+				final String outputXYDatasetPath = Paths.get( xyGroupPath, "s" + scale ).toString();
+				n5.createDataset(
+						outputXYDatasetPath,
+						new long[] { downsampledDimensions[ 0 ], downsampledDimensions[ 1 ], fullScaleDimensions[ 2 ] },
+						new int[] { cellSize[ 0 ], cellSize[ 1 ], fullScaleCellSize[ 2 ] },
+						fullScaleAttributes.getDataType(),
+						fullScaleAttributes.getCompressionType()
+					);
+				downsample( basePath, inputXYDatasetPath, outputXYDatasetPath );
 
-				sourceAndTargetIntervals.add( new Tuple2<>( new FinalInterval( sourceMin, sourceMax ), new FinalInterval( targetMin, targetMax ) ) );
-
-				for ( d = 0; d < dim; ++d )
-				{
-					offset[ d ] += cellSize[ d ];
-					if ( offset[ d ] <= max[ d ] )
-						break;
-					else
-						offset[ d ] = 0;
-				}
+				// downsample in Z
+				final String inputDatasetPath = outputXYDatasetPath;
+				final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
+				n5.createDataset(
+						outputDatasetPath,
+						downsampledDimensions,
+						cellSize,
+						fullScaleAttributes.getDataType(),
+						fullScaleAttributes.getCompressionType()
+					);
+				downsample( basePath, inputDatasetPath, outputDatasetPath );
 			}
 
-			final int[] downsamplingFactors = new int[ dim ];
-			Arrays.fill( downsamplingFactors, 1 );
-			for ( int i = 0; i < 2; i++ )
-				downsamplingFactors[ i ] = 2;
-
-			downsamplingFactorsForScales.add( downsamplingFactors );
-
-			final String previousScaleLevelSpark = previousScaleLevel;
-			sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
-			{
-				final N5Writer n5Local = N5.openFSWriter( basePath );
-
-				// TODO: can skip this target block if all source blocks are empty (not present)
-
-				final RandomAccessibleInterval< T > previousScaleLevelImg = N5Utils.open( n5Local, previousScaleLevelSpark );
-				final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
-				final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
-				Downsample.downsample( source, target, downsamplingFactors );
-
-				final long[] gridPosition = new long[ dim ];
-				final CellGrid cellGrid = new CellGrid( downsampledDimensions, cellSize );
-				cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
-
-				N5Utils.saveBlock( target, n5Local, scaleLevelPath, gridPosition );
-			} );
-
-			previousScaleLevel = scaleLevelPath;
-			System.arraycopy( downsampledDimensions, 0, previousDimensions, 0, downsampledDimensions.length );
+			scales.add( downsamplingFactors );
 		}
 
-		return downsamplingFactorsForScales;
+		if ( needIntermediateDownsamplingInXY )
+			n5.remove( xyGroupPath ); // TODO: parallel deletion
+
+		return scales.toArray( new int[ 0 ][] );
 	}
 
-	// TODO: unify with downsampleXY as these two methods share a lot of similar code
-	private List< int[] > downsampleZ(final String basePath, final String datasetPath, final double pixelResolutionZToXY ) throws IOException
+	private void downsample( final String basePath, final String inputDatasetPath, final String outputDatasetPath ) throws IOException
 	{
-		final N5Writer n5 = N5.openFSWriter( basePath );
-		final String rootOutputPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
-		final String xyGroupPath = Paths.get( rootOutputPath, "xy" ).toString();
+		final N5Reader n5 = N5.openFSReader( basePath );
+		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
+		final DatasetAttributes outputAttributes = n5.getDatasetAttributes( outputDatasetPath );
 
-		final List< int[] > downsamplingFactorsForScales = new ArrayList<>();
+		final long[] inputDimensions = inputAttributes.getDimensions();
+		final long[] outputDimensions = outputAttributes.getDimensions();
+		final int[] downsamplingFactors = new int[ inputDimensions.length ];
+		for ( int d = 0; d < downsamplingFactors.length; ++d )
+			downsamplingFactors[ d ] = ( int ) ( inputDimensions[ d ] / outputDimensions[ d ] );
 
-		// loop over scale levels
-		for ( int scaleLevel = 1; ; ++scaleLevel )
+		final int[] outputCellSize = outputAttributes.getBlockSize();
+		final int dim = outputCellSize.length;
+
+		final List< Tuple2< Interval, Interval > > sourceAndTargetIntervals = new ArrayList<>();
+		final long[] offset = new long[ dim ], sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
+		for ( int d = 0; d < dim; )
 		{
-			final String xyScaleLevelPath = Paths.get( xyGroupPath, "s" + scaleLevel ).toString();
-			final String scaleLevelPath = Paths.get( rootOutputPath, "s" + scaleLevel ).toString();
-
-			if ( !n5.datasetExists( xyScaleLevelPath ) )	// XY limit reached
-				break;
-
-			final DatasetAttributes attributes = n5.getDatasetAttributes( xyScaleLevelPath );
-			final long[] xyScaleDimensions = attributes.getDimensions();
-			final int[] xyCellSize = attributes.getBlockSize();
-			final int dim = xyScaleDimensions.length;
-
-			final Tuple2< Integer, Integer > zCellSizeAndDownsamplingFactor = getOptimalZCellSizeAndDownsamplingFactor( scaleLevel, Math.max( xyCellSize[ 0 ], xyCellSize[ 1 ] ), pixelResolutionZToXY );
-
-			final long[] downsampledDimensions = new long[ dim ];
-			for ( int d = 2; d < downsampledDimensions.length; ++d )
-				downsampledDimensions[ d ] = xyScaleDimensions[ d ] / zCellSizeAndDownsamplingFactor._2();
-			System.arraycopy( xyScaleDimensions, 0, downsampledDimensions, 0, 2 );
-
-			final int[] cellSize = new int[ dim ];
-			Arrays.fill( cellSize, zCellSizeAndDownsamplingFactor._1() );
-			System.arraycopy( xyCellSize, 0, cellSize, 0, 2 );
-
-			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() <= 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() <= Math.max( cellSize[ 0 ], cellSize[ 1 ] ) )
-				break;
-
-			n5.createDataset( scaleLevelPath, downsampledDimensions, cellSize, attributes.getDataType(), attributes.getCompressionType() );
-
-			final List< Tuple2< Interval, Interval > > sourceAndTargetIntervals = new ArrayList<>();
-			final long[] max = Intervals.maxAsLongArray( new FinalInterval( downsampledDimensions ) );
-			final long[] offset = new long[ dim ], sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
-			for ( int d = 0; d < dim; )
+			for ( int i = 0; i < dim; i++ )
 			{
-				for ( int i = 0; i < 2; i++ )
-				{
-					targetMin[ i ] = sourceMin[ i ] = offset[ i ];
-					targetMax[ i ] = sourceMax[ i ] = Math.min( targetMin[ i ] + cellSize[ i ] - 1, max[ i ] );
-				}
-				for ( int i = 2; i < dim; i++ )
-				{
-					targetMin[ i ] = offset[ i ];
-					targetMax[ i ] = Math.min( targetMin[ i ] + cellSize[ i ] - 1, max[ i ] );
-					sourceMin[ i ] = targetMin[ i ] * zCellSizeAndDownsamplingFactor._2();
-					sourceMax[ i ] = targetMax[ i ] * zCellSizeAndDownsamplingFactor._2() + ( zCellSizeAndDownsamplingFactor._2() - 1 );
-				}
-
-				sourceAndTargetIntervals.add( new Tuple2<>( new FinalInterval( sourceMin, sourceMax ), new FinalInterval( targetMin, targetMax ) ) );
-
-				for ( d = 0; d < dim; ++d )
-				{
-					offset[ d ] += cellSize[ d ];
-					if ( offset[ d ] <= max[ d ] )
-						break;
-					else
-						offset[ d ] = 0;
-				}
+				targetMin[ i ] = offset[ i ];
+				targetMax[ i ] = Math.min( targetMin[ i ] + outputCellSize[ i ], outputDimensions[ i ] ) - 1;
+				sourceMin[ i ] = targetMin[ i ] * downsamplingFactors[ i ];
+				sourceMax[ i ] = targetMax[ i ] * downsamplingFactors[ i ] + ( downsamplingFactors[ i ] - 1 );
 			}
 
-			final int[] downsamplingFactors = new int[ dim ];
-			Arrays.fill( downsamplingFactors, 1 );
-			for ( int i = 2; i < dim; ++i )
-				downsamplingFactors[ i ] = zCellSizeAndDownsamplingFactor._2();
+			sourceAndTargetIntervals.add( new Tuple2<>( new FinalInterval( sourceMin, sourceMax ), new FinalInterval( targetMin, targetMax ) ) );
 
-			downsamplingFactorsForScales.add( downsamplingFactors );
-
-			sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
+			for ( d = 0; d < dim; ++d )
 			{
-				final N5Writer n5Local = N5.openFSWriter( basePath );
-
-				// TODO: can skip this target block if all source blocks are empty (not present)
-
-				final RandomAccessibleInterval< T > xyScaleLevelImg = N5Utils.open( n5Local, xyScaleLevelPath );
-				final RandomAccessibleInterval< T > source = Views.offsetInterval( xyScaleLevelImg, sourceAndTargetInterval._1() );
-				final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
-				Downsample.downsample( source, target, downsamplingFactors );
-
-				final long[] gridPosition = new long[ dim ];
-				final CellGrid cellGrid = new CellGrid( downsampledDimensions, cellSize );
-				cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
-
-				N5Utils.saveBlock( target, n5Local, scaleLevelPath, gridPosition );
-			} );
+				offset[ d ] += outputCellSize[ d ];
+				if ( offset[ d ] < outputDimensions[ d ] )
+					break;
+				else
+					offset[ d ] = 0;
+			}
 		}
 
-		return downsamplingFactorsForScales;
-	}
+		sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
+		{
+			final N5Writer n5Local = N5.openFSWriter( basePath );
 
-	private void deleteXY( final String basePath, final String datasetPath ) throws IOException
-	{
-		// TODO: parallelized deletion of temporary export folder
-		final String rootOutputPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
-		final String xyGroupPath = Paths.get( rootOutputPath, "xy" ).toString();
-		final N5Writer n5 = N5.openFSWriter( basePath );
-		n5.remove( xyGroupPath );
+			// TODO: can skip this target block if all source blocks are empty (not present)
+
+			System.out.println( "Target interval: " + Arrays.toString( Intervals.minAsIntArray( sourceAndTargetInterval._2() ) ) + " to " + Arrays.toString( Intervals.maxAsIntArray( sourceAndTargetInterval._2() ) ) );
+
+			final RandomAccessibleInterval< T > previousScaleLevelImg = N5Utils.open( n5Local, inputDatasetPath );
+			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
+			final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
+			Downsample.downsample( source, target, downsamplingFactors );
+
+			final long[] gridPosition = new long[ dim ];
+			final CellGrid cellGrid = new CellGrid( outputDimensions, outputCellSize );
+			cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
+
+			N5Utils.saveBlock( target, n5Local, outputDatasetPath, gridPosition );
+		} );
 	}
 
 	private static double getPixelResolutionZtoXY( final VoxelDimensions voxelDimensions )
