@@ -13,14 +13,7 @@ import org.janelia.saalfeldlab.n5.N5Writer;
 
 public class N5RemoveSpark
 {
-	private final transient JavaSparkContext sparkContext;
-
-	public N5RemoveSpark( final JavaSparkContext sparkContext )
-	{
-		this.sparkContext = sparkContext;
-	}
-
-	public void remove( final String basePath, final String pathName ) throws IOException
+	public static void remove( final JavaSparkContext sparkContext, final String basePath, final String pathName ) throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		final List< String > leaves = new ArrayList<>();

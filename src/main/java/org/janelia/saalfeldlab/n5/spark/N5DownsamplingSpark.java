@@ -28,35 +28,25 @@ import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 import scala.Tuple2;
 
-public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
+public class N5DownsamplingSpark
 {
-	private final transient JavaSparkContext sparkContext;
-
-	/**
-	 * Takes an existing spark context to run the downsampling code.
-	 * Assumes that the spark context is instantiated using Kryo serializer (see {@link N5DownsamplingSparkTest} for reference)
-	 * as the downsampling code serializes objects of type {@link Interval}.
-	 *
-	 * @param sparkContext
-	 */
-	public N5DownsamplingSpark( final JavaSparkContext sparkContext )
-	{
-		this.sparkContext = sparkContext;
-	}
-
 	/**
 	 * Generates lower scale levels for a given dataset. Each scale level is downsampled by 2 in all dimensions.
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
 	 * Reuses the block size of the given dataset.
 	 *
+	 * @param sparkContext Spark context instantiated with Kryo serializer
 	 * @param basePath Path to the N5 root
 	 * @param datasetPath Path to the full-scale dataset
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public int[][] downsample( final String basePath, final String datasetPath ) throws IOException
+	public static int[][] downsample(
+			final JavaSparkContext sparkContext,
+			final String basePath,
+			final String datasetPath ) throws IOException
 	{
-		return downsampleIsotropic( basePath, datasetPath, null );
+		return downsampleIsotropic( sparkContext, basePath, datasetPath, null );
 	}
 
 	/**
@@ -69,13 +59,18 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
 	 * </p>
 	 *
+	 * @param sparkContext Spark context instantiated with Kryo serializer
 	 * @param basePath Path to the N5 root
 	 * @param datasetPath Path to the full-scale dataset
 	 * @param voxelDimensions Pixel resolution of the data
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public int[][] downsampleIsotropic( final String basePath, final String datasetPath, final VoxelDimensions voxelDimensions ) throws IOException
+	public static int[][] downsampleIsotropic(
+			final JavaSparkContext sparkContext,
+			final String basePath,
+			final String datasetPath,
+			final VoxelDimensions voxelDimensions ) throws IOException
 	{
 		final double pixelResolutionZToXY = ( voxelDimensions != null ? getPixelResolutionZtoXY( voxelDimensions ) : 1 );
 		final boolean needIntermediateDownsamplingInXY = ( pixelResolutionZToXY != 1 );
@@ -120,7 +115,7 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( basePath, inputDatasetPath, outputDatasetPath );
+				downsample( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
 			}
 			else
 			{
@@ -134,7 +129,7 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( basePath, inputXYDatasetPath, outputXYDatasetPath );
+				downsample( sparkContext, basePath, inputXYDatasetPath, outputXYDatasetPath );
 
 				// downsample in Z
 				final String inputDatasetPath = outputXYDatasetPath;
@@ -146,19 +141,23 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( basePath, inputDatasetPath, outputDatasetPath );
+				downsample( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
 			}
 
 			scales.add( downsamplingFactors );
 		}
 
 		if ( needIntermediateDownsamplingInXY )
-			new N5RemoveSpark( sparkContext ).remove( basePath, xyGroupPath );
+			N5RemoveSpark.remove( sparkContext, basePath, xyGroupPath );
 
 		return scales.toArray( new int[ 0 ][] );
 	}
 
-	private void downsample( final String basePath, final String inputDatasetPath, final String outputDatasetPath ) throws IOException
+	private static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final String basePath,
+			final String inputDatasetPath,
+			final String outputDatasetPath ) throws IOException
 	{
 		final N5Reader n5 = N5.openFSReader( basePath );
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
