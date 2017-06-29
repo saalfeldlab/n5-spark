@@ -153,7 +153,7 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 		}
 
 		if ( needIntermediateDownsamplingInXY )
-			n5.remove( xyGroupPath ); // TODO: parallel deletion
+			new N5RemoveSpark( sparkContext ).remove( basePath, xyGroupPath );
 
 		return scales.toArray( new int[ 0 ][] );
 	}
