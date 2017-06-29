@@ -201,10 +201,6 @@ public class N5DownsamplingSpark< T extends NativeType< T > & RealType< T > >
 		{
 			final N5Writer n5Local = N5.openFSWriter( basePath );
 
-			// TODO: can skip this target block if all source blocks are empty (not present)
-
-			System.out.println( "Target interval: " + Arrays.toString( Intervals.minAsIntArray( sourceAndTargetInterval._2() ) ) + " to " + Arrays.toString( Intervals.maxAsIntArray( sourceAndTargetInterval._2() ) ) );
-
 			final RandomAccessibleInterval< T > previousScaleLevelImg = N5Utils.open( n5Local, inputDatasetPath );
 			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
 			final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
