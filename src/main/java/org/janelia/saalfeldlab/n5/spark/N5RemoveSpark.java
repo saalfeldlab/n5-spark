@@ -40,7 +40,7 @@ public class N5RemoveSpark
 			}
 
 			// delete inner files
-			sparkContext.parallelize( leaves ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
+			sparkContext.parallelize( leaves, leaves.size() ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
 		}
 
 		// cleanup the directory tree
