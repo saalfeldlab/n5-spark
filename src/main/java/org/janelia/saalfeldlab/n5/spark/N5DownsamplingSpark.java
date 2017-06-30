@@ -196,7 +196,7 @@ public class N5DownsamplingSpark
 			}
 		}
 
-		sparkContext.parallelize( sourceAndTargetIntervals ).foreach( sourceAndTargetInterval ->
+		sparkContext.parallelize( sourceAndTargetIntervals, sourceAndTargetIntervals.size() ).foreach( sourceAndTargetInterval ->
 		{
 			final N5Writer n5Local = N5.openFSWriter( basePath );
 
