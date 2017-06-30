@@ -20,25 +20,30 @@ public class N5RemoveSpark
 	 * @param basePath Path to the N5 root
 	 * @param datasetPath Path to a group or dataset to be removed
 	 */
-	public static void remove( final JavaSparkContext sparkContext, final String basePath, final String pathName ) throws IOException
+	public static boolean remove( final JavaSparkContext sparkContext, final String basePath, final String pathName ) throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
-		final List< String > leaves = new ArrayList<>();
-		final Queue< String > nodesQueue = new LinkedList<>();
-		nodesQueue.add( pathName );
-		while ( !nodesQueue.isEmpty() )
+		if ( n5.exists( pathName ) )
 		{
-			final String node = nodesQueue.remove();
-			final String[] children = n5.list( node );
-			if ( children.length == 0 )
-				leaves.add( node );
-			else
-				for ( final String child : children )
-					nodesQueue.add( Paths.get( node, child ).toString() );
+			final List< String > leaves = new ArrayList<>();
+			final Queue< String > nodesQueue = new LinkedList<>();
+			nodesQueue.add( pathName );
+			while ( !nodesQueue.isEmpty() )
+			{
+				final String node = nodesQueue.remove();
+				final String[] children = n5.list( node );
+				if ( children.length == 0 )
+					leaves.add( node );
+				else
+					for ( final String child : children )
+						nodesQueue.add( Paths.get( node, child ).toString() );
+			}
+
+			// delete inner files
+			sparkContext.parallelize( leaves ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
 		}
 
-		sparkContext.parallelize( leaves ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
-
-		n5.remove( pathName );
+		// cleanup the directory tree
+		return n5.remove( pathName );
 	}
 }
