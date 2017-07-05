@@ -3,13 +3,15 @@ package org.janelia.saalfeldlab.n5.spark;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Writer;
+
+import scala.Tuple2;
 
 public class N5RemoveSpark
 {
@@ -26,17 +28,26 @@ public class N5RemoveSpark
 		if ( n5.exists( pathName ) )
 		{
 			final List< String > leaves = new ArrayList<>();
-			final Queue< String > nodesQueue = new LinkedList<>();
+			final List< String > nodesQueue = new ArrayList<>();
 			nodesQueue.add( pathName );
+
+			// iteratively find all leaves
 			while ( !nodesQueue.isEmpty() )
 			{
-				final String node = nodesQueue.remove();
-				final String[] children = n5.list( node );
-				if ( children.length == 0 )
-					leaves.add( node );
-				else
-					for ( final String child : children )
-						nodesQueue.add( Paths.get( node, child ).toString() );
+				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, nodesQueue.size() ).mapToPair( node -> new Tuple2<>( node, N5.openFSReader( basePath ).list( node ) ) ).collectAsMap();
+				nodesQueue.clear();
+				for ( final Entry< String, String[] > entry : nodeToChildren.entrySet() )
+				{
+					if ( entry.getValue().length == 0 )
+					{
+						leaves.add( entry.getKey() );
+					}
+					else
+					{
+						for ( final String child : entry.getValue() )
+							nodesQueue.add( Paths.get( entry.getKey(), child ).toString() );
+					}
+				}
 			}
 
 			// delete inner files
