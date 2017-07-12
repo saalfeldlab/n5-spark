@@ -13,6 +13,7 @@ import org.janelia.saalfeldlab.n5.N5Reader;
 
 import ij.IJ;
 import ij.ImagePlus;
+import loci.plugins.LociExporter;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccess;
@@ -31,11 +32,18 @@ import net.imglib2.view.Views;
 
 public class N5SliceTiffConverter
 {
+	public static enum TiffCompression
+	{
+		UNCOMPRESSED,
+		LZW
+	}
+
 	public static < T extends NativeType< T > > void convertToSliceTiff(
 			final JavaSparkContext sparkContext,
 			final String basePath,
 			final String datasetPath,
-			final String outputPath ) throws IOException
+			final String outputPath,
+			final TiffCompression compression ) throws IOException
 	{
 		final N5Reader n5 = N5.openFSReader( basePath );
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
@@ -76,7 +84,20 @@ public class N5SliceTiffConverter
 				}
 
 				final ImagePlus sliceImp = sliceTarget.getImagePlus();
-				IJ.saveAsTiff( sliceImp, Paths.get( outputPath, z + ".tif" ).toString() );
-			} );
+				final String outputImgPath = Paths.get( outputPath, z + ".tif" ).toString();
+				switch ( compression )
+				{
+				case UNCOMPRESSED:
+					IJ.saveAsTiff( sliceImp, outputImgPath );
+					break;
+				case LZW:
+					final LociExporter lociExporter = new LociExporter();
+					lociExporter.setup( String.format( "outfile=[%s] compression=[LZW] windowless=[TRUE]", outputImgPath ), sliceImp );
+					lociExporter.run( null );
+				default:
+					break;
+				}
+			}
+		);
 	}
 }

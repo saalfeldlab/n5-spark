@@ -65,6 +65,10 @@
 			<artifactId>n5-imglib2</artifactId>
 			<version>1.0.0</version>
 		</dependency>
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>bio-formats_plugins</artifactId>
+		</dependency>
 	</dependencies>
 	
 	<build>
