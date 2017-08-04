@@ -10,10 +10,9 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
 
-import ij.IJ;
 import ij.ImagePlus;
-import loci.plugins.LociExporter;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccess;
@@ -32,12 +31,6 @@ import net.imglib2.view.Views;
 
 public class N5SliceTiffConverter
 {
-	public static enum TiffCompression
-	{
-		UNCOMPRESSED,
-		LZW
-	}
-
 	public static < T extends NativeType< T > > void convertToSliceTiff(
 			final JavaSparkContext sparkContext,
 			final String basePath,
@@ -85,18 +78,7 @@ public class N5SliceTiffConverter
 
 				final ImagePlus sliceImp = sliceTarget.getImagePlus();
 				final String outputImgPath = Paths.get( outputPath, z + ".tif" ).toString();
-				switch ( compression )
-				{
-				case UNCOMPRESSED:
-					IJ.saveAsTiff( sliceImp, outputImgPath );
-					break;
-				case LZW:
-					final LociExporter lociExporter = new LociExporter();
-					lociExporter.setup( String.format( "outfile=[%s] compression=[LZW] windowless=[TRUE]", outputImgPath ), sliceImp );
-					lociExporter.run( null );
-				default:
-					break;
-				}
+				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
 	}
