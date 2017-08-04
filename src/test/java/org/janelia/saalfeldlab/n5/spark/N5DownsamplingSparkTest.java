@@ -11,6 +11,8 @@ import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator;
+import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -69,7 +71,101 @@ public class N5DownsamplingSparkTest
 	}
 
 	@Test
-	public void test() throws IOException
+	public void testIsotropicScalingParameters()
+	{
+		IsotropicScalingParameters testParams;
+
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 0, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 1, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 2, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 3, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 4, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 16 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 5, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 32 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 6, new int[] { 8, 8, 8 }, 1 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 64 }, testParams.downsamplingFactors );
+
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 0, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 4 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 1, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 2, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 2 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 3, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 4 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 4, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 9 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 5, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 17 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 6, new int[] { 8, 8, 8 }, IsotropicScalingEstimator.getPixelResolutionZtoXY( new FinalVoxelDimensions( "um", 0.097, 0.097, 0.18 ) ) );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 34 }, testParams.downsamplingFactors );
+
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 0, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 3 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 1, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 6 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 2, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 12 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 3, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 9 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 3 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 4, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 9 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 5 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 5, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 9 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 11 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 6, new int[] { 8, 8, 8 }, 3 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 9 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 21 }, testParams.downsamplingFactors );
+
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 0, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 2 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 1, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 4 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 2, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 1 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 3, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 2 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 4, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 4 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 5, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 8 }, testParams.downsamplingFactors );
+		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 6, new int[] { 8, 8, 8 }, 4 );
+		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 16 }, testParams.downsamplingFactors );
+	}
+
+	@Test
+	public void testDownsampling() throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		createDataset( n5 );
@@ -104,7 +200,7 @@ public class N5DownsamplingSparkTest
 	}
 
 	@Test
-	public void testIsotropic() throws IOException
+	public void testIsotropicDownsampling() throws IOException
 	{
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		createDataset( n5 );

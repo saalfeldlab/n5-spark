@@ -12,6 +12,7 @@ import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
 
 import bdv.export.Downsample;
 import mpicbg.spim.data.sequence.VoxelDimensions;
@@ -30,6 +31,42 @@ import scala.Tuple2;
 
 public class N5DownsamplingSpark
 {
+	public static class IsotropicScalingEstimator
+	{
+		public static class IsotropicScalingParameters
+		{
+			public final int[] cellSize;
+			public final int[] downsamplingFactors;
+
+			public IsotropicScalingParameters( final int[] cellSize, final int[] downsamplingFactors )
+			{
+				this.cellSize = cellSize;
+				this.downsamplingFactors = downsamplingFactors;
+			}
+		}
+
+		public static double getPixelResolutionZtoXY( final VoxelDimensions voxelDimensions )
+		{
+			return voxelDimensions.dimension( 2 ) / Math.max( voxelDimensions.dimension( 0 ), voxelDimensions.dimension( 1 ) );
+		}
+
+		public static IsotropicScalingParameters getOptimalCellSizeAndDownsamplingFactor( final int scaleLevel, final int[] originalCellSize, final double pixelResolutionZtoXY )
+		{
+			final int xyDownsamplingFactor = 1 << scaleLevel;
+			final int isotropicScaling = ( int ) Math.round( xyDownsamplingFactor / pixelResolutionZtoXY );
+			final int zDownsamplingFactor = Math.max( isotropicScaling, 1 );
+			final int[] downsamplingFactors = new int[] { xyDownsamplingFactor, xyDownsamplingFactor, zDownsamplingFactor };
+
+			final int fullScaleOptimalCellSize = ( int ) Math.round( Math.max( originalCellSize[ 0 ], originalCellSize[ 1 ] ) / pixelResolutionZtoXY );
+			final int zOptimalCellSize = ( int ) Math.round( fullScaleOptimalCellSize * xyDownsamplingFactor / ( double ) zDownsamplingFactor );
+			// adjust Z cell size to a closest multiple of the original Z cell size
+			final int zAdjustedCellSize = ( int ) Math.round( ( zOptimalCellSize / ( double ) fullScaleOptimalCellSize ) ) * fullScaleOptimalCellSize;
+			final int[] cellSize = new int[] { originalCellSize[ 0 ], originalCellSize[ 1 ], zAdjustedCellSize };
+
+			return new IsotropicScalingParameters( cellSize, downsamplingFactors );
+		}
+	}
+
 	/**
 	 * Generates lower scale levels for a given dataset. Each scale level is downsampled by 2 in all dimensions.
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
@@ -72,8 +109,8 @@ public class N5DownsamplingSpark
 			final String datasetPath,
 			final VoxelDimensions voxelDimensions ) throws IOException
 	{
-		final double pixelResolutionZToXY = ( voxelDimensions != null ? getPixelResolutionZtoXY( voxelDimensions ) : 1 );
-		final boolean needIntermediateDownsamplingInXY = ( pixelResolutionZToXY != 1 );
+		final double pixelResolutionZtoXY = ( voxelDimensions != null ? IsotropicScalingEstimator.getPixelResolutionZtoXY( voxelDimensions ) : 1 );
+		final boolean needIntermediateDownsamplingInXY = ( pixelResolutionZtoXY != 1 );
 
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
@@ -90,11 +127,9 @@ public class N5DownsamplingSpark
 		// loop over scale levels
 		for ( int scale = 1; ; ++scale )
 		{
-			final int[] cellSize = fullScaleCellSize.clone();
-			final Tuple2< Integer, Integer > zCellSizeAndScale = getOptimalZCellSizeAndDownsamplingFactor( scale, Math.max( cellSize[ 0 ], cellSize[ 1 ] ), pixelResolutionZToXY );
-			cellSize[ 2 ] = zCellSizeAndScale._1();
-
-			final int[] downsamplingFactors = new int[] { 1 << scale, 1 << scale, zCellSizeAndScale._2() };
+			final IsotropicScalingParameters isotropicScalingParameters = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( scale, fullScaleCellSize, pixelResolutionZtoXY );
+			final int[] cellSize = isotropicScalingParameters.cellSize;
+			final int[] downsamplingFactors = isotropicScalingParameters.downsamplingFactors;
 
 			final long[] downsampledDimensions = fullScaleDimensions.clone();
 			for ( int d = 0; d < downsampledDimensions.length; ++d )
@@ -211,19 +246,5 @@ public class N5DownsamplingSpark
 
 			N5Utils.saveBlock( target, n5Local, outputDatasetPath, gridPosition );
 		} );
-	}
-
-	private static double getPixelResolutionZtoXY( final VoxelDimensions voxelDimensions )
-	{
-		return voxelDimensions.dimension( 2 ) / Math.max( voxelDimensions.dimension( 0 ), voxelDimensions.dimension( 1 ) );
-	}
-
-	private static Tuple2< Integer, Integer > getOptimalZCellSizeAndDownsamplingFactor( final int scaleLevel, final int cellSizeXY, final double pixelResolutionZToXY )
-	{
-		final int isotropicScaling = ( int ) Math.round( ( 1 << scaleLevel ) / pixelResolutionZToXY );
-		final int zDownsamplingFactor = Math.max( isotropicScaling, 1 );
-		final int fullScaleOptimalCellSize = ( int ) Math.round( cellSizeXY / pixelResolutionZToXY );
-		final int zCellSize = ( fullScaleOptimalCellSize << scaleLevel ) / zDownsamplingFactor;
-		return new Tuple2<>( zCellSize, zDownsamplingFactor );
 	}
 }
