@@ -67,6 +67,8 @@ public class N5DownsamplingSpark
 		}
 	}
 
+	private static final int MAX_PARTITIONS = 15000;
+
 	/**
 	 * Generates lower scale levels for a given dataset. Each scale level is downsampled by 2 in all dimensions.
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
@@ -231,7 +233,7 @@ public class N5DownsamplingSpark
 			}
 		}
 
-		sparkContext.parallelize( sourceAndTargetIntervals, sourceAndTargetIntervals.size() ).foreach( sourceAndTargetInterval ->
+		sparkContext.parallelize( sourceAndTargetIntervals, Math.min( sourceAndTargetIntervals.size(), MAX_PARTITIONS ) ).foreach( sourceAndTargetInterval ->
 		{
 			final N5Writer n5Local = N5.openFSWriter( basePath );
 
