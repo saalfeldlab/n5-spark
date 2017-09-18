@@ -15,6 +15,8 @@ import scala.Tuple2;
 
 public class N5RemoveSpark
 {
+	private static final int MAX_PARTITIONS = 15000;
+
 	/**
 	 * Removes an N5 group or dataset parallelizing over inner groups.
 	 *
@@ -34,7 +36,7 @@ public class N5RemoveSpark
 			// iteratively find all leaves
 			while ( !nodesQueue.isEmpty() )
 			{
-				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, nodesQueue.size() ).mapToPair( node -> new Tuple2<>( node, N5.openFSReader( basePath ).list( node ) ) ).collectAsMap();
+				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, Math.min( nodesQueue.size(), MAX_PARTITIONS ) ).mapToPair( node -> new Tuple2<>( node, N5.openFSReader( basePath ).list( node ) ) ).collectAsMap();
 				nodesQueue.clear();
 				for ( final Entry< String, String[] > entry : nodeToChildren.entrySet() )
 				{
@@ -51,7 +53,7 @@ public class N5RemoveSpark
 			}
 
 			// delete inner files
-			sparkContext.parallelize( leaves, leaves.size() ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
+			sparkContext.parallelize( leaves, Math.min( leaves.size(), MAX_PARTITIONS ) ).foreach( leaf -> N5.openFSWriter( basePath ).remove( leaf ) );
 		}
 
 		// cleanup the directory tree
