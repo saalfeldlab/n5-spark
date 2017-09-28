@@ -73,6 +73,7 @@ public class N5DownsamplingSpark
 	}
 
 	private static final int MAX_PARTITIONS = 15000;
+	private static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
 
 	/**
 	 * Generates lower scale levels for a given dataset. Each scale level is downsampled by 2 in all dimensions.
@@ -186,6 +187,8 @@ public class N5DownsamplingSpark
 				downsampleImpl( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
 			}
 
+			final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
+			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, downsamplingFactors );
 			scales.add( downsamplingFactors );
 		}
 
