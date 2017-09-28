@@ -100,11 +100,16 @@
 
 	<build>
 		<plugins>
+			<!-- Maven shade for Uber Jar -->
+			<!-- https://maven.apache.org/plugins/maven-shade-plugin/shade-mojo.html -->
+			<!-- https://databricks.gitbooks.io/databricks-spark-knowledge-base/content/troubleshooting/missing_dependencies_in_jar_files.html -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>1.6</version>
+				<version>2.4.3</version>
 				<configuration>
+					<!-- Do not minimize for now to speed up packaging. -->
+					<!--<minimizeJar>true</minimizeJar> -->
 					<filters>
 						<filter>
 							<artifact>*:*</artifact>
@@ -115,15 +120,9 @@
 							</excludes>
 						</filter>
 					</filters>
-					<artifactSet>
-						<excludes>
-							<exclude>*hadoop*</exclude>
-							<exclude>*spark*</exclude>
-							<exclude>*scala*</exclude>
-						</excludes>
-					</artifactSet>
 					<!-- Additional configuration. -->
 				</configuration>
+				<!-- binds by default to package phase -->
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -136,11 +135,16 @@
 									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 									<mainClass>org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark</mainClass>
 								</transformer>
+								<transformer
+									implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+									<resource>reference.conf</resource>
+								</transformer>
 							</transformers>
 						</configuration>
 					</execution>
 				</executions>
 			</plugin>
+			<!-- Maven shade end -->
 		</plugins>
 		
 		<pluginManagement>
