@@ -249,4 +249,9 @@ public class N5DownsamplingSpark
 			N5Utils.saveBlock( target, n5Local, outputDatasetPath, gridPosition );
 		} );
 	}
+
+	public static void main( final String... args )
+	{
+
+	}
 }
