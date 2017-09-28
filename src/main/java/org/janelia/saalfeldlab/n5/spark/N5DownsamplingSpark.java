@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
@@ -13,8 +14,12 @@ import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import bdv.export.Downsample;
+import mpicbg.spim.data.sequence.FinalVoxelDimensions;
 import mpicbg.spim.data.sequence.VoxelDimensions;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
@@ -152,7 +157,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
+				downsampleImpl( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
 			}
 			else
 			{
@@ -166,7 +171,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( sparkContext, basePath, inputXYDatasetPath, outputXYDatasetPath );
+				downsampleImpl( sparkContext, basePath, inputXYDatasetPath, outputXYDatasetPath );
 
 				// downsample in Z
 				final String inputDatasetPath = outputXYDatasetPath;
@@ -178,7 +183,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsample( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
+				downsampleImpl( sparkContext, basePath, inputDatasetPath, outputDatasetPath );
 			}
 
 			scales.add( downsamplingFactors );
@@ -190,7 +195,7 @@ public class N5DownsamplingSpark
 		return scales.toArray( new int[ 0 ][] );
 	}
 
-	private static < T extends NativeType< T > & RealType< T > > void downsample(
+	private static < T extends NativeType< T > & RealType< T > > void downsampleImpl(
 			final JavaSparkContext sparkContext,
 			final String basePath,
 			final String inputDatasetPath,
@@ -250,8 +255,79 @@ public class N5DownsamplingSpark
 		} );
 	}
 
-	public static void main( final String... args )
-	{
 
+	public static void main( final String... args ) throws IOException
+	{
+		final Arguments parsedArgs = new Arguments( args );
+		if ( !parsedArgs.parsedSuccessfully() )
+			System.exit( 1 );
+
+		final int[][] scales;
+
+		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
+				.setAppName( "N5DownsamplingSpark" )
+				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+			) )
+		{
+			if ( parsedArgs.getPixelResolution() == null )
+				scales = downsample( sparkContext, parsedArgs.getN5Path(), parsedArgs.getInputDatasetPath() );
+			else
+				scales = downsampleIsotropic( sparkContext, parsedArgs.getN5Path(), parsedArgs.getInputDatasetPath(), new FinalVoxelDimensions( "", parsedArgs.getPixelResolution() ) );
+		}
+
+		System.out.println();
+		System.out.println( "Scale levels:" );
+		for ( int s = 0; s < scales.length; ++s )
+			System.out.println( "  " + s + ": " + Arrays.toString( scales[ s ] ) );
+	}
+
+	private static class Arguments
+	{
+		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
+				usage = "Path to an N5 container.")
+		private String n5Path;
+
+		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
+				usage = "Path to an input dataset within the N5 container (e.g. data/group/s0).")
+		private String inputDatasetPath;
+
+		@Option(name = "-r", aliases = { "--pixelResolution" }, required = false,
+				usage = "Pixel resolution of the data. Used to determine downsampling factors in Z to make the scale levels as close to isotropic as possible.")
+		private String pixelResolution;
+
+		private boolean parsedSuccessfully = false;
+
+		public Arguments( final String... args ) throws IllegalArgumentException
+		{
+			final CmdLineParser parser = new CmdLineParser( this );
+			try
+			{
+				parser.parseArgument( args );
+				parsedSuccessfully = true;
+			}
+			catch ( final CmdLineException e )
+			{
+				System.err.println( e.getMessage() );
+				parser.printUsage( System.err );
+			}
+		}
+
+		public boolean parsedSuccessfully() { return parsedSuccessfully; }
+
+		public String getN5Path() { return n5Path; }
+		public String getInputDatasetPath() { return inputDatasetPath; }
+		public double[] getPixelResolution() { return parseDoubleArray( pixelResolution ); }
+
+		private static double[] parseDoubleArray( final String str )
+		{
+			if ( str == null )
+				return null;
+
+			final String[] tokens = str.split( "," );
+			final double[] values = new double[ tokens.length ];
+			for ( int i = 0; i < values.length; i++ )
+				values[ i ] = Double.parseDouble( tokens[ i ] );
+			return values;
+		}
 	}
 }
