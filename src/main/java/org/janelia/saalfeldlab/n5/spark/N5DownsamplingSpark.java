@@ -80,9 +80,12 @@ public class N5DownsamplingSpark
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
 	 * Reuses the block size of the given dataset.
 	 *
-	 * @param sparkContext Spark context instantiated with Kryo serializer
-	 * @param basePath Path to the N5 root
-	 * @param datasetPath Path to the full-scale dataset
+	 * @param sparkContext
+	 * 			Spark context instantiated with Kryo serializer
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to the full-scale dataset
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
@@ -104,10 +107,14 @@ public class N5DownsamplingSpark
 	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
 	 * </p>
 	 *
-	 * @param sparkContext Spark context instantiated with Kryo serializer
-	 * @param basePath Path to the N5 root
-	 * @param datasetPath Path to the full-scale dataset
-	 * @param voxelDimensions Pixel resolution of the data
+	 * @param sparkContext
+	 * 			Spark context instantiated with Kryo serializer
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to the full-scale dataset
+	 * @param voxelDimensions
+	 * 			Pixel resolution of the data
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
