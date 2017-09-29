@@ -7,9 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import scala.Tuple2;
 
@@ -61,5 +65,56 @@ public class N5RemoveSpark
 
 		// cleanup the directory tree
 		return n5.remove( pathName );
+	}
+
+
+	public static void main( final String... args ) throws IOException
+	{
+		final Arguments parsedArgs = new Arguments( args );
+		if ( !parsedArgs.parsedSuccessfully() )
+			System.exit( 1 );
+
+		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
+				.setAppName( "N5RemoveSpark" )
+				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+			) )
+		{
+			remove( sparkContext, parsedArgs.getN5Path(), parsedArgs.getInputPath() );
+		}
+
+		System.out.println( System.lineSeparator() + "Done" );
+	}
+
+	private static class Arguments
+	{
+		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
+				usage = "Path to an N5 container.")
+		private String n5Path;
+
+		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
+				usage = "Path to a group or dataset within the N5 container to be removed (e.g. data/group).")
+		private String inputPath;
+
+		private boolean parsedSuccessfully = false;
+
+		public Arguments( final String... args ) throws IllegalArgumentException
+		{
+			final CmdLineParser parser = new CmdLineParser( this );
+			try
+			{
+				parser.parseArgument( args );
+				parsedSuccessfully = true;
+			}
+			catch ( final CmdLineException e )
+			{
+				System.err.println( e.getMessage() );
+				parser.printUsage( System.err );
+			}
+		}
+
+		public boolean parsedSuccessfully() { return parsedSuccessfully; }
+
+		public String getN5Path() { return n5Path; }
+		public String getInputPath() { return inputPath; }
 	}
 }
