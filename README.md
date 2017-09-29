@@ -74,6 +74,37 @@ By default the downsampling factors are powers of two (`[2,2,2],[4,4,4],[8,8,8],
 The block size of the input dataset is reused, or adjusted with respect to the pixel resolution if the optional parameter is supplied. The used downsampling factors are written into the attributes metadata of the lower resolution datasets.
 
 
+### N5 to slice TIFF series converter
+
+<details>
+<summary><b>Run on Janelia cluster</b></summary>
+
+```bash
+spark-janelia/n5-slice-tiff.py 
+<number of cluster nodes> 
+-n <path to n5 root> 
+-i <input dataset> 
+-o <output path> 
+[-c <tiff compression>]
+```
+</details>
+
+<details>
+<summary><b>Run on local machine</b></summary>
+
+```bash
+spark-local/n5-slice-tiff.py 
+-n <path to n5 root> 
+-i <input dataset> 
+-o <output path> 
+[-c <tiff compression>]
+```
+</details>
+
+The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
+The following TIFF compression modes are supported: `-c lzw` and `-c none`.
+
+
 ### N5 max intensity projection
 
 <details>
