@@ -8,12 +8,16 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import ij.ImagePlus;
 import net.imglib2.Cursor;
@@ -284,5 +288,90 @@ public class N5MaxIntensityProjection
 		System.arraycopy( pos, 0, mipPos, 0, mipDim );
 		System.arraycopy( pos, mipDim + 1, mipPos, mipDim, mipPos.length - mipDim );
 		return mipPos;
+	}
+
+
+	public static void main( final String... args ) throws IOException
+	{
+		final Arguments parsedArgs = new Arguments( args );
+		if ( !parsedArgs.parsedSuccessfully() )
+			System.exit( 1 );
+
+		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
+				.setAppName( "N5MaxIntensityProjectionSpark" )
+				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+			) )
+		{
+			createMaxIntensityProjection(
+					sparkContext,
+					parsedArgs.getN5Path(),
+					parsedArgs.getInputDatasetPath(),
+					parsedArgs.getMipCellsStep(),
+					parsedArgs.getOutputPath(),
+					parsedArgs.getTiffCompression()
+				);
+		}
+
+		System.out.println( System.lineSeparator() + "Done" );
+	}
+
+	private static class Arguments
+	{
+		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
+				usage = "Path to an N5 container.")
+		private String n5Path;
+
+		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
+				usage = "Path to an input dataset within the N5 container (e.g. data/group/s0).")
+		private String inputDatasetPath;
+
+		@Option(name = "-o", aliases = { "--outputPath" }, required = true,
+				usage = "Output path for storing TIFF max intensity projections.")
+		private String outputPath;
+
+		@Option(name = "-c", aliases = { "--tiffCompression" }, required = false,
+				usage = "Tiff compression (LZW or NONE).")
+		private TiffCompression tiffCompression = TiffCompression.LZW;
+
+		@Option(name = "-m", aliases = { "--mipCellsStep" }, required = false,
+				usage = "Number of cells used for a single MIP image (MIP step in X/Y/Z). By default the MIP is computed through the entire volume.")
+		private String mipCellsStep;
+
+		private boolean parsedSuccessfully = false;
+
+		public Arguments( final String... args ) throws IllegalArgumentException
+		{
+			final CmdLineParser parser = new CmdLineParser( this );
+			try
+			{
+				parser.parseArgument( args );
+				parsedSuccessfully = true;
+			}
+			catch ( final CmdLineException e )
+			{
+				System.err.println( e.getMessage() );
+				parser.printUsage( System.err );
+			}
+		}
+
+		public boolean parsedSuccessfully() { return parsedSuccessfully; }
+
+		public String getN5Path() { return n5Path; }
+		public String getInputDatasetPath() { return inputDatasetPath; }
+		public String getOutputPath() { return outputPath; }
+		public TiffCompression getTiffCompression() { return tiffCompression; }
+		public int[] getMipCellsStep() { return parseIntArray( mipCellsStep ); }
+
+		private static int[] parseIntArray( final String str )
+		{
+			if ( str == null )
+				return null;
+
+			final String[] tokens = str.split( "," );
+			final int[] values = new int[ tokens.length ];
+			for ( int i = 0; i < values.length; i++ )
+				values[ i ] = Integer.parseInt( tokens[ i ] );
+			return values;
+		}
 	}
 }
