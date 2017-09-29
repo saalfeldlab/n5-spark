@@ -44,13 +44,17 @@ The scripts for starting the application are located under `startup-scripts/spar
 If running locally, you can access the Spark job tracker at http://localhost:4040/ to monitor the progress of the tasks.
 
 
-### N5 Downsampling
+### N5 downsampling
 
 <details>
 <summary><b>Run on Janelia cluster</b></summary>
 
 ```bash
-spark-janelia/n5-downsample.py <number of cluster nodes> -n <path to n5 root> -i <input dataset> [-r <pixel resolution>]
+spark-janelia/n5-downsample.py 
+<number of cluster nodes> 
+-n <path to n5 root> 
+-i <input dataset> 
+[-r <pixel resolution>]
 ```
 </details>
 
@@ -58,13 +62,49 @@ spark-janelia/n5-downsample.py <number of cluster nodes> -n <path to n5 root> -i
 <summary><b>Run on local machine</b></summary>
 
 ```bash
-spark-local/n5-downsample.py -n <path to n5 root> -i <input dataset> [-r <pixel resolution>]
+spark-local/n5-downsample.py 
+-n <path to n5 root> 
+-i <input dataset> 
+[-r <pixel resolution>]
 ```
 </details>
 
 The tool generates lower resolution datasets in the same group with the input dataset until the resulting volume fits into a single block. The namin scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
 By default the downsampling factors are powers of two (`[2,2,2],[4,4,4],[8,8,8],...`). If the optional pixel resolution parameter is passed (e.g. `-r 0.097,0.097,0.18`), the downsampling factors in Z are adjusted with respect to it to make lower resolutions as close to isotropic as possible.<br/>
 The block size of the input dataset is reused, or adjusted with respect to the pixel resolution if the optional parameter is supplied. The used downsampling factors are written into the attributes metadata of the lower resolution datasets.
+
+### N5 max intensity projection
+
+<details>
+<summary><b>Run on Janelia cluster</b></summary>
+
+```bash
+spark-janelia/n5-mips.py 
+<number of cluster nodes> 
+-n <path to n5 root> 
+-i <input dataset> 
+-o <output path> 
+[-c <tiff compression>]
+[-m <mip step>]
+```
+</details>
+
+<details>
+<summary><b>Run on local machine</b></summary>
+
+```bash
+spark-local/n5-mips.py 
+-n <path to n5 root> 
+-i <input dataset> 
+-o <output path> 
+[-c <tiff compression>]
+[-m <mip step>]
+```
+</details>
+
+The tool generates max intensity projections in X/Y/Z directions and saves them as TIFF images in the specified output folder.<br/>
+By default the entire volume is used to create a single MIP in X/Y/Z. You can specify MIP step as a number of cells included in a single MIP (e.g. `-m 5,5,3`).<br/>
+The following TIFF compression modes are supported: `-c lzw` and `-c none`.
 
 
 -------------------------------------------------------------
