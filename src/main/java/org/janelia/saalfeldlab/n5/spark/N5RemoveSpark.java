@@ -20,9 +20,12 @@ public class N5RemoveSpark
 	/**
 	 * Removes an N5 group or dataset parallelizing over inner groups.
 	 *
-	 * @param sparkContext Spark context
-	 * @param basePath Path to the N5 root
-	 * @param datasetPath Path to a group or dataset to be removed
+	 * @param sparkContext
+	 * 			Spark context
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to a group or dataset to be removed
 	 */
 	public static boolean remove( final JavaSparkContext sparkContext, final String basePath, final String pathName ) throws IOException
 	{
