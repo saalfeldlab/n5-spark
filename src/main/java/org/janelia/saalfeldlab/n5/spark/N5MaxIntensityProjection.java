@@ -83,6 +83,22 @@ public class N5MaxIntensityProjection
 
 	private static final String[] AXES = new String[] { "x", "y", "z" };
 
+	/**
+	 * Generates max intensity projection of the given dataset in X/Y/Z directions.
+	 * Saves the resulting MIPs as TIFF images in the specified output folder.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with Kryo serializer
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting MIPs
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting MIPs
+	 * @throws IOException
+	 */
 	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
 			final String basePath,
@@ -100,6 +116,24 @@ public class N5MaxIntensityProjection
 			);
 	}
 
+	/**
+	 * Generates max intensity projection of the given dataset in X/Y/Z directions using the specified MIP step.
+	 * Saves the resulting MIPs as TIFF images in the specified output folder.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with Kryo serializer
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param cellsInSingleMIP
+	 * 			MIP step in X/Y/Z directions specified as the number of N5 blocks included in a single MIP
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting MIPs
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting MIPs
+	 * @throws IOException
+	 */
 	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
 			final String basePath,
