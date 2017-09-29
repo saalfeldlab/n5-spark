@@ -31,6 +31,21 @@ import net.imglib2.view.Views;
 
 public class N5SliceTiffConverter
 {
+	/**
+	 * Converts a given dataset into slice TIFF series.
+	 *
+	 * @param sparkContext
+	 * 			Spark context
+	 * @param basePath
+	 * 			Path to the N5 root
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting TIFF series
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting TIFF series
+	 * @throws IOException
+	 */
 	public static < T extends NativeType< T > > void convertToSliceTiff(
 			final JavaSparkContext sparkContext,
 			final String basePath,
