@@ -87,6 +87,23 @@ public class N5MaxIntensityProjection
 			final JavaSparkContext sparkContext,
 			final String basePath,
 			final String datasetPath,
+			final String outputPath,
+			final TiffCompression compression ) throws IOException
+	{
+		createMaxIntensityProjection(
+				sparkContext,
+				basePath,
+				datasetPath,
+				null,
+				outputPath,
+				compression
+			);
+	}
+
+	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
+			final JavaSparkContext sparkContext,
+			final String basePath,
+			final String datasetPath,
 			final int[] cellsInSingleMIP,
 			final String outputPath,
 			final TiffCompression compression ) throws IOException
@@ -175,7 +192,7 @@ public class N5MaxIntensityProjection
 						final List< Tuple2< MipKey, RandomAccessibleInterval< T > > > ret = new ArrayList<>();
 						for ( int d = 0; d < dim; ++d )
 						{
-							final int mipStep = ( int) ( cellGridPosition[ d ] / cellsInSingleMIP[ d ] );
+							final int mipStep = cellsInSingleMIP == null ? 0 : ( int ) ( cellGridPosition[ d ] / cellsInSingleMIP[ d ] );
 							ret.add( new Tuple2<>( new MipKey( d, mipStep, getMipPosition( cellGridPosition, d ) ), cellMips.get( d ) ) );
 						}
 						return ret.iterator();
@@ -202,7 +219,7 @@ public class N5MaxIntensityProjection
 			.foreach( keyAndMips ->
 					{
 						final int mipDimension = keyAndMips._1().dimension;
-						final long mipCoordinate = ( long ) keyAndMips._1().mipStep * cellsInSingleMIP[ mipDimension ] * blockSize[ mipDimension ];
+						final long mipCoordinate = cellsInSingleMIP == null ? 0 : ( long ) keyAndMips._1().mipStep * cellsInSingleMIP[ mipDimension ] * blockSize[ mipDimension ];
 
 						final ImagePlusImg< T, ? > mip = new ImagePlusImgFactory< T >().create(
 								getMipPosition( dimensions, mipDimension ),
