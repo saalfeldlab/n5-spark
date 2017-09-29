@@ -6,11 +6,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 
 import ij.ImagePlus;
 import net.imglib2.Cursor;
@@ -96,5 +100,72 @@ public class N5SliceTiffConverter
 				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
+	}
+
+
+	public static void main( final String... args ) throws IOException
+	{
+		final Arguments parsedArgs = new Arguments( args );
+		if ( !parsedArgs.parsedSuccessfully() )
+			System.exit( 1 );
+
+		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
+				.setAppName( "N5SliceTiffSpark" )
+				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
+			) )
+		{
+			convertToSliceTiff(
+					sparkContext,
+					parsedArgs.getN5Path(),
+					parsedArgs.getInputDatasetPath(),
+					parsedArgs.getOutputPath(),
+					parsedArgs.getTiffCompression()
+				);
+		}
+
+		System.out.println( System.lineSeparator() + "Done" );
+	}
+
+	private static class Arguments
+	{
+		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
+				usage = "Path to an N5 container.")
+		private String n5Path;
+
+		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
+				usage = "Path to an input dataset within the N5 container (e.g. data/group/s0).")
+		private String inputDatasetPath;
+
+		@Option(name = "-o", aliases = { "--outputPath" }, required = true,
+				usage = "Output path for storing slice TIFF series.")
+		private String outputPath;
+
+		@Option(name = "-c", aliases = { "--tiffCompression" }, required = false,
+				usage = "Tiff compression (LZW or NONE).")
+		private TiffCompression tiffCompression = TiffCompression.LZW;
+
+		private boolean parsedSuccessfully = false;
+
+		public Arguments( final String... args ) throws IllegalArgumentException
+		{
+			final CmdLineParser parser = new CmdLineParser( this );
+			try
+			{
+				parser.parseArgument( args );
+				parsedSuccessfully = true;
+			}
+			catch ( final CmdLineException e )
+			{
+				System.err.println( e.getMessage() );
+				parser.printUsage( System.err );
+			}
+		}
+
+		public boolean parsedSuccessfully() { return parsedSuccessfully; }
+
+		public String getN5Path() { return n5Path; }
+		public String getInputDatasetPath() { return inputDatasetPath; }
+		public String getOutputPath() { return outputPath; }
+		public TiffCompression getTiffCompression() { return tiffCompression; }
 	}
 }
