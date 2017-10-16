@@ -74,11 +74,11 @@ public class N5RemoveSparkTest
 					n5.writeBlock(datasetName, attributes, dataBlock);
 				}
 
-		N5RemoveSpark.remove( sparkContext, basePath, datasetName );
+		N5RemoveSpark.remove( sparkContext, n5, datasetName );
 		Assert.assertFalse( Files.exists( Paths.get( basePath, datasetName ) ) );
 		Assert.assertTrue( Files.exists( Paths.get( basePath, groupName ) ) );
 
-		N5RemoveSpark.remove( sparkContext, basePath, "" );
+		N5RemoveSpark.remove( sparkContext, n5, "" );
 		Assert.assertFalse( Files.exists( Paths.get( basePath ) ) );
 	}
 }
