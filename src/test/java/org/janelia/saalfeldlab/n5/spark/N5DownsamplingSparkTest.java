@@ -170,7 +170,7 @@ public class N5DownsamplingSparkTest
 		final N5Writer n5 = N5.openFSWriter( basePath );
 		createDataset( n5 );
 
-		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, basePath, datasetPath );
+		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, n5, datasetPath );
 
 		Assert.assertTrue( scales.length == 2 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
@@ -206,7 +206,7 @@ public class N5DownsamplingSparkTest
 		createDataset( n5 );
 
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
-		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, basePath, datasetPath, voxelSize );
+		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, n5, datasetPath, voxelSize );
 
 		Assert.assertTrue( scales.length == 2 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );

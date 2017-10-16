@@ -13,7 +13,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
-import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -45,7 +45,6 @@ public class N5MaxIntensityProjection
 
 		public final int dimension;
 		public final int mipStep;
-		public final long[] coords;
 
 		public MipKey( final int dimension, final int mipStep )
 		{
@@ -56,7 +55,6 @@ public class N5MaxIntensityProjection
 		{
 			this.dimension = dimension;
 			this.mipStep = mipStep;
-			this.coords = coords;
 
 			key = dimension + ":" + mipStep + ( coords != null ? "=" + Arrays.toString( coords ) : "" );
 		}
@@ -93,8 +91,8 @@ public class N5MaxIntensityProjection
 	 *
 	 * @param sparkContext
 	 * 			Spark context instantiated with Kryo serializer
-	 * @param basePath
-	 * 			Path to the N5 root
+	 * @param n5
+	 * 			N5 container
 	 * @param datasetPath
 	 * 			Path to the input dataset
 	 * @param outputPath
@@ -105,14 +103,14 @@ public class N5MaxIntensityProjection
 	 */
 	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
-			final String basePath,
+			final N5Writer n5,
 			final String datasetPath,
 			final String outputPath,
 			final TiffCompression compression ) throws IOException
 	{
 		createMaxIntensityProjection(
 				sparkContext,
-				basePath,
+				n5,
 				datasetPath,
 				null,
 				outputPath,
@@ -126,8 +124,8 @@ public class N5MaxIntensityProjection
 	 *
 	 * @param sparkContext
 	 * 			Spark context instantiated with Kryo serializer
-	 * @param basePath
-	 * 			Path to the N5 root
+	 * @param n5
+	 * 			N5 container
 	 * @param datasetPath
 	 * 			Path to the input dataset
 	 * @param cellsInSingleMIP
@@ -140,13 +138,12 @@ public class N5MaxIntensityProjection
 	 */
 	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
-			final String basePath,
+			final N5Writer n5,
 			final String datasetPath,
 			final int[] cellsInSingleMIP,
 			final String outputPath,
 			final TiffCompression compression ) throws IOException
 	{
-		final N5Reader n5 = N5.openFSReader( basePath );
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
 		final long[] dimensions = attributes.getDimensions();
 		final int[] blockSize = attributes.getBlockSize();
@@ -167,7 +164,8 @@ public class N5MaxIntensityProjection
 		for ( int d = 0; d < dim; ++d )
 			Paths.get( outputPath, AXES[ d ] ).toFile().mkdirs();
 
-		final Broadcast< T > broadcastedType = sparkContext.broadcast( type );
+		final Broadcast< N5Writer > n5Broadcast = sparkContext.broadcast( n5 );
+		final Broadcast< T > typeBroadcast = sparkContext.broadcast( type );
 
 		sparkContext
 			// distribute flat cell indexes
@@ -178,7 +176,7 @@ public class N5MaxIntensityProjection
 			// compute MIPs for x/y/z of each cell
 			.flatMapToPair( cellIndex ->
 					{
-						final N5Reader n5Local = N5.openFSReader( basePath );
+						final N5Writer n5Local = n5Broadcast.value();
 						final CachedCellImg< T, ? > cellImg = N5SparkUtils.openWithBoundedCache( n5Local, datasetPath, 1 );
 						final RandomAccess< T > cellImgRandomAccess = cellImg.randomAccess();
 
@@ -201,7 +199,7 @@ public class N5MaxIntensityProjection
 													Intervals.dimensionsAsLongArray( new FinalDimensions( cellDims ) ), // ugly conversion from int[] to long[]
 													d
 												),
-											broadcastedType.value()
+											typeBroadcast.value()
 										),
 									getMipPosition( cellMin, d )
 								);
@@ -261,7 +259,7 @@ public class N5MaxIntensityProjection
 
 						final ImagePlusImg< T, ? > mip = new ImagePlusImgFactory< T >().create(
 								getMipPosition( dimensions, mipDimension ),
-								broadcastedType.value()
+								typeBroadcast.value()
 							);
 
 						for ( final RandomAccessibleInterval< T > cellMip : keyAndMips._2() )
@@ -279,7 +277,8 @@ public class N5MaxIntensityProjection
 					}
 				);
 
-		broadcastedType.destroy();
+		n5Broadcast.destroy();
+		typeBroadcast.destroy();
 	}
 
 	private static long[] getMipPosition( final long[] pos, final int mipDim )
@@ -302,9 +301,10 @@ public class N5MaxIntensityProjection
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
+			final N5Writer n5 = N5.openFSWriter( parsedArgs.getN5Path() );
 			createMaxIntensityProjection(
 					sparkContext,
-					parsedArgs.getN5Path(),
+					n5,
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getMipCellsStep(),
 					parsedArgs.getOutputPath(),
