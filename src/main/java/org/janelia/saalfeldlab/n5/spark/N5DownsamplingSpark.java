@@ -8,7 +8,6 @@ import java.util.List;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Writer;
@@ -91,10 +90,10 @@ public class N5DownsamplingSpark
 	 */
 	public static int[][] downsample(
 			final JavaSparkContext sparkContext,
-			final N5Writer n5,
+			final N5WriterSupplier n5Supplier,
 			final String datasetPath ) throws IOException
 	{
-		return downsampleIsotropic( sparkContext, n5, datasetPath, null );
+		return downsampleIsotropic( sparkContext, n5Supplier, datasetPath, null );
 	}
 
 	/**
@@ -120,13 +119,14 @@ public class N5DownsamplingSpark
 	 */
 	public static int[][] downsampleIsotropic(
 			final JavaSparkContext sparkContext,
-			final N5Writer n5,
+			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
 			final VoxelDimensions voxelDimensions ) throws IOException
 	{
 		final double pixelResolutionZtoXY = ( voxelDimensions != null ? IsotropicScalingEstimator.getPixelResolutionZtoXY( voxelDimensions ) : 1 );
 		final boolean needIntermediateDownsamplingInXY = ( pixelResolutionZtoXY != 1 );
 
+		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
 
 		final long[] fullScaleDimensions = fullScaleAttributes.getDimensions();
@@ -164,7 +164,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsampleImpl( sparkContext, n5, inputDatasetPath, outputDatasetPath );
+				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
 			else
 			{
@@ -178,7 +178,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsampleImpl( sparkContext, n5, inputXYDatasetPath, outputXYDatasetPath );
+				downsampleImpl( sparkContext, n5Supplier, inputXYDatasetPath, outputXYDatasetPath );
 
 				// downsample in Z
 				final String inputDatasetPath = outputXYDatasetPath;
@@ -190,7 +190,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompressionType()
 					);
-				downsampleImpl( sparkContext, n5, inputDatasetPath, outputDatasetPath );
+				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
 
 			final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
@@ -199,17 +199,18 @@ public class N5DownsamplingSpark
 		}
 
 		if ( needIntermediateDownsamplingInXY )
-			N5RemoveSpark.remove( sparkContext, n5, xyGroupPath );
+			N5RemoveSpark.remove( sparkContext, n5Supplier, xyGroupPath );
 
 		return scales.toArray( new int[ 0 ][] );
 	}
 
 	private static < T extends NativeType< T > & RealType< T > > void downsampleImpl(
 			final JavaSparkContext sparkContext,
-			final N5Writer n5,
+			final N5WriterSupplier n5Supplier,
 			final String inputDatasetPath,
 			final String outputDatasetPath ) throws IOException
 	{
+		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final DatasetAttributes outputAttributes = n5.getDatasetAttributes( outputDatasetPath );
 
@@ -246,11 +247,9 @@ public class N5DownsamplingSpark
 			}
 		}
 
-		final Broadcast< N5Writer > n5Broadcast = sparkContext.broadcast( n5 );
-
 		sparkContext.parallelize( sourceAndTargetIntervals, Math.min( sourceAndTargetIntervals.size(), MAX_PARTITIONS ) ).foreach( sourceAndTargetInterval ->
 		{
-			final N5Writer n5Local = n5Broadcast.value();
+			final N5Writer n5Local = n5Supplier.get();
 
 			final RandomAccessibleInterval< T > previousScaleLevelImg = N5Utils.open( n5Local, inputDatasetPath );
 			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
@@ -263,8 +262,6 @@ public class N5DownsamplingSpark
 
 			N5Utils.saveBlock( target, n5Local, outputDatasetPath, gridPosition );
 		} );
-
-		n5Broadcast.destroy();
 	}
 
 
@@ -281,11 +278,11 @@ public class N5DownsamplingSpark
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5Writer n5 = N5.openFSWriter( parsedArgs.getN5Path() );
+			final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( parsedArgs.getN5Path() );
 			if ( parsedArgs.getPixelResolution() == null )
-				scales = downsample( sparkContext, n5, parsedArgs.getInputDatasetPath() );
+				scales = downsample( sparkContext, n5Supplier, parsedArgs.getInputDatasetPath() );
 			else
-				scales = downsampleIsotropic( sparkContext, n5, parsedArgs.getInputDatasetPath(), new FinalVoxelDimensions( "", parsedArgs.getPixelResolution() ) );
+				scales = downsampleIsotropic( sparkContext, n5Supplier, parsedArgs.getInputDatasetPath(), new FinalVoxelDimensions( "", parsedArgs.getPixelResolution() ) );
 		}
 
 		System.out.println();

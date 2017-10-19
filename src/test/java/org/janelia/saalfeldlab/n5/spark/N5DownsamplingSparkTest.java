@@ -28,6 +28,8 @@ public class N5DownsamplingSparkTest
 	static private final String basePath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
 	static private final String datasetPath = "data";
 
+	static private final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( basePath );
+
 	private JavaSparkContext sparkContext;
 
 	@Before
@@ -50,7 +52,7 @@ public class N5DownsamplingSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( N5.openFSWriter( basePath ) );
+			cleanup( n5Supplier.get() );
 	}
 
 	private void createDataset( final N5Writer n5 ) throws IOException
@@ -167,10 +169,10 @@ public class N5DownsamplingSparkTest
 	@Test
 	public void testDownsampling() throws IOException
 	{
-		final N5Writer n5 = N5.openFSWriter( basePath );
+		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5 );
 
-		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, n5, datasetPath );
+		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, n5Supplier, datasetPath );
 
 		Assert.assertTrue( scales.length == 2 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
@@ -202,11 +204,11 @@ public class N5DownsamplingSparkTest
 	@Test
 	public void testIsotropicDownsampling() throws IOException
 	{
-		final N5Writer n5 = N5.openFSWriter( basePath );
+		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5 );
 
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
-		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, n5, datasetPath, voxelSize );
+		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, n5Supplier, datasetPath, voxelSize );
 
 		Assert.assertTrue( scales.length == 2 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );

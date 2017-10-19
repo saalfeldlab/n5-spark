@@ -24,6 +24,8 @@ public class N5RemoveSparkTest
 	static private String groupName = "/test/group";
 	static private String datasetName = "/test/group/dataset";
 
+	static private final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( basePath );
+
 	private JavaSparkContext sparkContext;
 
 	@Before
@@ -46,7 +48,7 @@ public class N5RemoveSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( N5.openFSWriter( basePath ) );
+			cleanup( n5Supplier.get() );
 	}
 
 	private void cleanup( final N5Writer n5 ) throws IOException
@@ -57,7 +59,7 @@ public class N5RemoveSparkTest
 	@Test
 	public void test() throws IOException
 	{
-		final N5Writer n5 = N5.openFSWriter( basePath );
+		final N5Writer n5 = n5Supplier.get();
 
 		final short[] data = new short[64 * 64 * 64];
 		final Random rnd = new Random();
@@ -74,11 +76,11 @@ public class N5RemoveSparkTest
 					n5.writeBlock(datasetName, attributes, dataBlock);
 				}
 
-		N5RemoveSpark.remove( sparkContext, n5, datasetName );
+		N5RemoveSpark.remove( sparkContext, n5Supplier, datasetName );
 		Assert.assertFalse( Files.exists( Paths.get( basePath, datasetName ) ) );
 		Assert.assertTrue( Files.exists( Paths.get( basePath, groupName ) ) );
 
-		N5RemoveSpark.remove( sparkContext, n5, "" );
+		N5RemoveSpark.remove( sparkContext, n5Supplier, "" );
 		Assert.assertFalse( Files.exists( Paths.get( basePath ) ) );
 	}
 }

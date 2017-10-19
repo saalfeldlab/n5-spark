@@ -9,7 +9,6 @@ import java.util.Map.Entry;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.kohsuke.args4j.CmdLineException;
@@ -34,21 +33,20 @@ public class N5RemoveSpark
 	 */
 	public static boolean remove(
 			final JavaSparkContext sparkContext,
-			final N5Writer n5,
+			final N5WriterSupplier n5Supplier,
 			final String pathName ) throws IOException
 	{
+		final N5Writer n5 = n5Supplier.get();
 		if ( n5.exists( pathName ) )
 		{
 			final List< String > leaves = new ArrayList<>();
 			final List< String > nodesQueue = new ArrayList<>();
 			nodesQueue.add( pathName );
 
-			final Broadcast< N5Writer > n5Broadcast = sparkContext.broadcast( n5 );
-
 			// iteratively find all leaves
 			while ( !nodesQueue.isEmpty() )
 			{
-				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, Math.min( nodesQueue.size(), MAX_PARTITIONS ) ).mapToPair( node -> new Tuple2<>( node, n5Broadcast.value().list( node ) ) ).collectAsMap();
+				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, Math.min( nodesQueue.size(), MAX_PARTITIONS ) ).mapToPair( node -> new Tuple2<>( node, n5Supplier.get().list( node ) ) ).collectAsMap();
 				nodesQueue.clear();
 				for ( final Entry< String, String[] > entry : nodeToChildren.entrySet() )
 				{
@@ -65,9 +63,7 @@ public class N5RemoveSpark
 			}
 
 			// delete inner files
-			sparkContext.parallelize( leaves, Math.min( leaves.size(), MAX_PARTITIONS ) ).foreach( leaf -> n5Broadcast.value().remove( leaf ) );
-
-			n5Broadcast.destroy();
+			sparkContext.parallelize( leaves, Math.min( leaves.size(), MAX_PARTITIONS ) ).foreach( leaf -> n5Supplier.get().remove( leaf ) );
 		}
 
 		// cleanup the directory tree
@@ -86,8 +82,8 @@ public class N5RemoveSpark
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5Writer n5 = N5.openFSWriter(parsedArgs.getN5Path());
-			remove( sparkContext, n5, parsedArgs.getInputPath() );
+			final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( parsedArgs.getN5Path() );
+			remove( sparkContext, n5Supplier, parsedArgs.getInputPath() );
 		}
 
 		System.out.println( System.lineSeparator() + "Done" );
