@@ -17,6 +17,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import com.esotericsoftware.kryo.Kryo;
+
 import bdv.export.Downsample;
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
 import mpicbg.spim.data.sequence.VoxelDimensions;
@@ -80,9 +82,9 @@ public class N5DownsamplingSpark
 	 * Reuses the block size of the given dataset.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with Kryo serializer
-	 * @param n5
-	 * 			N5 container to use
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Writer} supplier
 	 * @param datasetPath
 	 * 			Path to the full-scale dataset
 	 *
@@ -107,9 +109,9 @@ public class N5DownsamplingSpark
 	 * </p>
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with Kryo serializer
-	 * @param n5
-	 * 			N5 container
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Writer} supplier
 	 * @param datasetPath
 	 * 			Path to the full-scale dataset
 	 * @param voxelDimensions

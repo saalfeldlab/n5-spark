@@ -16,6 +16,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import com.esotericsoftware.kryo.Kryo;
+
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
@@ -39,9 +41,9 @@ public class N5SliceTiffConverter
 	 * Converts a given dataset into slice TIFF series.
 	 *
 	 * @param sparkContext
-	 * 			Spark context
-	 * @param n5
-	 * 			N5 container
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
 	 * @param datasetPath
 	 * 			Path to the input dataset
 	 * @param outputPath
