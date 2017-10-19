@@ -19,6 +19,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import com.esotericsoftware.kryo.Kryo;
+
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalDimensions;
@@ -90,9 +92,9 @@ public class N5MaxIntensityProjection
 	 * Saves the resulting MIPs as TIFF images in the specified output folder.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with Kryo serializer
-	 * @param n5
-	 * 			N5 container
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
 	 * @param datasetPath
 	 * 			Path to the input dataset
 	 * @param outputPath
@@ -123,9 +125,9 @@ public class N5MaxIntensityProjection
 	 * Saves the resulting MIPs as TIFF images in the specified output folder.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with Kryo serializer
-	 * @param n5
-	 * 			N5 container
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
 	 * @param datasetPath
 	 * 			Path to the input dataset
 	 * @param cellsInSingleMIP

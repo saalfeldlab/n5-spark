@@ -15,6 +15,8 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import com.esotericsoftware.kryo.Kryo;
+
 import scala.Tuple2;
 
 public class N5RemoveSpark
@@ -25,9 +27,9 @@ public class N5RemoveSpark
 	 * Removes an N5 group or dataset parallelizing over inner groups.
 	 *
 	 * @param sparkContext
-	 * 			Spark context
-	 * @param n5
-	 * 			N5 container
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Writer} supplier
 	 * @param datasetPath
 	 * 			Path to a group or dataset to be removed
 	 */
