@@ -8,11 +8,9 @@ import java.util.stream.LongStream;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5;
 import org.janelia.saalfeldlab.n5.N5Reader;
-import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -54,11 +52,12 @@ public class N5SliceTiffConverter
 	 */
 	public static < T extends NativeType< T > > void convertToSliceTiff(
 			final JavaSparkContext sparkContext,
-			final N5Writer n5,
+			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
 			final String outputPath,
 			final TiffCompression compression ) throws IOException
 	{
+		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
 		final long[] dimensions = attributes.getDimensions();
 
@@ -66,11 +65,9 @@ public class N5SliceTiffConverter
 
 		Paths.get( outputPath ).toFile().mkdirs();
 
-		final Broadcast< N5Writer > n5Broadcast = sparkContext.broadcast( n5 );
-
 		sparkContext.parallelize( zCoords, zCoords.size() ).foreach( z ->
 			{
-				final N5Reader n5Local = n5Broadcast.value();
+				final N5Reader n5Local = n5Supplier.get();
 				final CachedCellImg< T, ? > cellImg = N5SparkUtils.openWithBoundedCache( n5Local, datasetPath, 1 );
 				final CellRandomAccess< T, ? extends Cell< ? > > cellImgRandomAccess = cellImg.randomAccess();
 				final CellGrid cellGrid = cellImg.getCellGrid();
@@ -103,8 +100,6 @@ public class N5SliceTiffConverter
 				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
-
-		n5Broadcast.destroy();
 	}
 
 
@@ -119,10 +114,10 @@ public class N5SliceTiffConverter
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5Writer n5 = N5.openFSWriter( parsedArgs.getN5Path() );
+			final N5ReaderSupplier n5Supplier = () -> N5.openFSReader( parsedArgs.getN5Path() );
 			convertToSliceTiff(
 					sparkContext,
-					n5,
+					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getOutputPath(),
 					parsedArgs.getTiffCompression()
