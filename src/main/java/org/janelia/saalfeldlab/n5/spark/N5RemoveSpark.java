@@ -24,6 +24,21 @@ public class N5RemoveSpark
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
+	 * Removes an N5 container parallelizing over inner groups.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Writer} supplier
+	 */
+	public static boolean remove(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier ) throws IOException
+	{
+		return remove( sparkContext, n5Supplier, null );
+	}
+
+	/**
 	 * Removes an N5 group or dataset parallelizing over inner groups.
 	 *
 	 * @param sparkContext
@@ -39,11 +54,11 @@ public class N5RemoveSpark
 			final String pathName ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
-		if ( n5.exists( pathName ) )
+		if ( pathName == null || n5.exists( pathName ) )
 		{
 			final List< String > leaves = new ArrayList<>();
 			final List< String > nodesQueue = new ArrayList<>();
-			nodesQueue.add( pathName );
+			nodesQueue.add( pathName != null ? pathName : "" );
 
 			// iteratively find all leaves
 			while ( !nodesQueue.isEmpty() )
@@ -69,7 +84,7 @@ public class N5RemoveSpark
 		}
 
 		// cleanup the directory tree
-		return n5.remove( pathName );
+		return pathName != null ? n5.remove( pathName ) : n5.remove();
 	}
 
 
