@@ -26,7 +26,7 @@ To use as a standalone tool, compile the package for the desired execution envir
 <summary><b>Compile for running on Janelia cluster</b></summary>
 
 ```bash
-mvn clean package
+python build.py
 ```
 </details>
 
@@ -34,7 +34,7 @@ mvn clean package
 <summary><b>Compile for running on local machine</b></summary>
 
 ```bash
-mvn clean package -Pspark-local
+python build-spark-local.py
 ```
 </details>
 <br/>
