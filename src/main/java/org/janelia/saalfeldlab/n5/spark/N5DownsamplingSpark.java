@@ -9,7 +9,7 @@ import java.util.List;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5;
+import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
@@ -164,7 +164,7 @@ public class N5DownsamplingSpark
 						downsampledDimensions,
 						cellSize,
 						fullScaleAttributes.getDataType(),
-						fullScaleAttributes.getCompressionType()
+						fullScaleAttributes.getCompression()
 					);
 				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
@@ -178,7 +178,7 @@ public class N5DownsamplingSpark
 						new long[] { downsampledDimensions[ 0 ], downsampledDimensions[ 1 ], fullScaleDimensions[ 2 ] },
 						new int[] { cellSize[ 0 ], cellSize[ 1 ], fullScaleCellSize[ 2 ] },
 						fullScaleAttributes.getDataType(),
-						fullScaleAttributes.getCompressionType()
+						fullScaleAttributes.getCompression()
 					);
 				downsampleImpl( sparkContext, n5Supplier, inputXYDatasetPath, outputXYDatasetPath );
 
@@ -190,7 +190,7 @@ public class N5DownsamplingSpark
 						downsampledDimensions,
 						cellSize,
 						fullScaleAttributes.getDataType(),
-						fullScaleAttributes.getCompressionType()
+						fullScaleAttributes.getCompression()
 					);
 				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
@@ -280,7 +280,7 @@ public class N5DownsamplingSpark
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( parsedArgs.getN5Path() );
+			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
 			if ( parsedArgs.getPixelResolution() == null )
 				scales = downsample( sparkContext, n5Supplier, parsedArgs.getInputDatasetPath() );
 			else
