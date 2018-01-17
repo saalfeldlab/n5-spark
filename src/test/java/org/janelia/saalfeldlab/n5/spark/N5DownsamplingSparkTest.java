@@ -182,7 +182,7 @@ public class N5DownsamplingSparkTest
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 
 		Assert.assertTrue(
-				Paths.get( basePath ).toFile().listFiles().length == 2 &&
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 2 &&
 				n5.datasetExists( datasetPath ) &&
 				n5.datasetExists( downsampledDatasetPath ) );
 
@@ -218,7 +218,7 @@ public class N5DownsamplingSparkTest
 		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
 
 		Assert.assertTrue(
-				Paths.get( basePath ).toFile().listFiles().length == 2 &&
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 2 &&
 				n5.datasetExists( datasetPath ) &&
 				n5.datasetExists( downsampledDatasetPath ) );
 
