@@ -9,7 +9,7 @@ import java.util.stream.LongStream;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5;
+import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
@@ -116,7 +116,7 @@ public class N5SliceTiffConverter
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5ReaderSupplier n5Supplier = () -> N5.openFSReader( parsedArgs.getN5Path() );
+			final N5ReaderSupplier n5Supplier = () -> new N5FSReader( parsedArgs.getN5Path() );
 			convertToSliceTiff(
 					sparkContext,
 					n5Supplier,

@@ -1,14 +1,15 @@
 package org.janelia.saalfeldlab.n5.spark;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.CompressionType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5;
+import org.janelia.saalfeldlab.n5.GzipCompression;
+import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator;
@@ -28,7 +29,7 @@ public class N5DownsamplingSparkTest
 	static private final String basePath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
 	static private final String datasetPath = "data";
 
-	static private final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( basePath );
+	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
 
 	private JavaSparkContext sparkContext;
 
@@ -64,7 +65,7 @@ public class N5DownsamplingSparkTest
 		for ( byte i = 0; i < data.length; ++i )
 			data[ i ] = i;
 
-		N5Utils.save( ArrayImgs.bytes( data, dimensions ), n5, datasetPath, cellSize, CompressionType.GZIP );
+		N5Utils.save( ArrayImgs.bytes( data, dimensions ), n5, datasetPath, cellSize, new GzipCompression() );
 	}
 
 	private void cleanup( final N5Writer n5 ) throws IOException

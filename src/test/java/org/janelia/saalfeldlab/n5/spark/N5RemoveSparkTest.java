@@ -7,11 +7,11 @@ import java.util.Random;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.CompressionType;
 import org.janelia.saalfeldlab.n5.DataType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5;
+import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.RawCompression;
 import org.janelia.saalfeldlab.n5.ShortArrayDataBlock;
 import org.junit.After;
 import org.junit.Assert;
@@ -24,7 +24,7 @@ public class N5RemoveSparkTest
 	static private String groupName = "/test/group";
 	static private String datasetName = "/test/group/dataset";
 
-	static private final N5WriterSupplier n5Supplier = () -> N5.openFSWriter( basePath );
+	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
 
 	private JavaSparkContext sparkContext;
 
@@ -67,7 +67,7 @@ public class N5RemoveSparkTest
 			data[ i ] = ( short ) ( rnd.nextInt() % ( Short.MAX_VALUE - Short.MIN_VALUE + 1 ) );
 
 		final int nBlocks = 5;
-		n5.createDataset( datasetName, new long[]{ 64 * nBlocks, 64 * nBlocks, 64 * nBlocks }, new int[]{ 64, 64, 64 }, DataType.UINT16, CompressionType.RAW );
+		n5.createDataset( datasetName, new long[]{ 64 * nBlocks, 64 * nBlocks, 64 * nBlocks }, new int[]{ 64, 64, 64 }, DataType.UINT16, new RawCompression() );
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetName );
 		for (int z = 0; z < nBlocks; ++z)
 			for (int y = 0; y < nBlocks; ++y)
