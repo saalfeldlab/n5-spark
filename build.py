@@ -3,11 +3,11 @@
 import os
 import subprocess
 
-def build(base_folder, build_args=[]):
+def run_build(base_folder, build_args=[]):
 	cmd_args = ['mvn', 'clean', 'package'] + build_args
 	subprocess.call(cmd_args, cwd=base_folder)
 
 if __name__ == '__main__':
-	base_folder = os.path.dirname(os.path.realpath(__file__))
+	base_folder = os.path.dirname(os.path.abspath(__file__))
 	build_args = ['-P', 'fatjar,spark-provided']
-	build(base_folder, build_args)
+	run_build(base_folder, build_args)
