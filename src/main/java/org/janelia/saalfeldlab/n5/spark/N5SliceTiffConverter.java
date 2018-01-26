@@ -1,6 +1,7 @@
 package org.janelia.saalfeldlab.n5.spark;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -129,8 +130,10 @@ public class N5SliceTiffConverter
 		System.out.println( System.lineSeparator() + "Done" );
 	}
 
-	private static class Arguments
+	private static class Arguments implements Serializable
 	{
+		private static final long serialVersionUID = -2719585735604464792L;
+
 		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
 				usage = "Path to an N5 container.")
 		private String n5Path;

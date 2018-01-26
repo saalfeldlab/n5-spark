@@ -1,6 +1,7 @@
 package org.janelia.saalfeldlab.n5.spark;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -293,8 +294,10 @@ public class N5DownsamplingSpark
 			System.out.println( "  " + s + ": " + Arrays.toString( scales[ s ] ) );
 	}
 
-	private static class Arguments
+	private static class Arguments implements Serializable
 	{
+		private static final long serialVersionUID = -1467734459169624759L;
+
 		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
 				usage = "Path to an N5 container.")
 		private String n5Path;
