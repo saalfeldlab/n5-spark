@@ -80,6 +80,12 @@
 								</filter>
 							</filters>
 							<!-- Additional configuration. -->
+							<relocations>
+								<relocation>
+									<pattern>org.apache.commons.compress</pattern>
+									<shadedPattern>org.janelia.saalfeldlab.org.apache.commons.compress</shadedPattern>
+								</relocation>
+							</relocations>
 						</configuration>
 						<!-- binds by default to package phase -->
 						<executions>
