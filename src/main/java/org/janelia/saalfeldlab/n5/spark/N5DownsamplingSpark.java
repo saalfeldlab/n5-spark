@@ -6,6 +6,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -46,7 +48,6 @@ import net.imglib2.type.operators.MulFloatingPoint;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
-import scala.Tuple2;
 
 public class N5DownsamplingSpark
 {
@@ -239,34 +240,28 @@ public class N5DownsamplingSpark
 		final int[] outputCellSize = outputAttributes.getBlockSize();
 		final int dim = outputCellSize.length;
 
-		final List< Tuple2< Interval, Interval > > sourceAndTargetIntervals = new ArrayList<>();
-		final long[] offset = new long[ dim ], sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
-		for ( int d = 0; d < dim; )
+		final CellGrid outputCellGrid = new CellGrid( outputDimensions, outputCellSize );
+		final long numDownsampledBlocks = Intervals.numElements( outputCellGrid.getGridDimensions() );
+		final List< Long > blockIndexes = LongStream.range( 0, numDownsampledBlocks ).boxed().collect( Collectors.toList() );
+
+		sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( blockIndex ->
 		{
-			for ( int i = 0; i < dim; i++ )
+			final CellGrid cellGrid = new CellGrid( outputDimensions, outputCellSize );
+			final long[] gridPosition = new long[ dim ];
+			cellGrid.getCellGridPositionFlat( blockIndex, gridPosition );
+
+			final long[] sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
+			final int[] cellDimensions = new int[ dim ];
+			cellGrid.getCellDimensions( gridPosition, targetMin, cellDimensions );
+			for ( int d = 0; d < dim; ++d )
 			{
-				targetMin[ i ] = offset[ i ];
-				targetMax[ i ] = Math.min( targetMin[ i ] + outputCellSize[ i ], outputDimensions[ i ] ) - 1;
-				sourceMin[ i ] = targetMin[ i ] * downsamplingFactors[ i ];
-				sourceMax[ i ] = targetMax[ i ] * downsamplingFactors[ i ] + ( downsamplingFactors[ i ] - 1 );
+				targetMax[ d ] = targetMin[ d ] + cellDimensions[ d ] - 1;
+				sourceMin[ d ] = targetMin[ d ] * downsamplingFactors[ d ];
+				sourceMax[ d ] = targetMax[ d ] * downsamplingFactors[ d ] + ( downsamplingFactors[ d ] - 1 );
 			}
 
-			sourceAndTargetIntervals.add( new Tuple2<>( new FinalInterval( sourceMin, sourceMax ), new FinalInterval( targetMin, targetMax ) ) );
-
-			for ( d = 0; d < dim; ++d )
-			{
-				offset[ d ] += outputCellSize[ d ];
-				if ( offset[ d ] < outputDimensions[ d ] )
-					break;
-				else
-					offset[ d ] = 0;
-			}
-		}
-
-		sparkContext.parallelize( sourceAndTargetIntervals, Math.min( sourceAndTargetIntervals.size(), MAX_PARTITIONS ) ).foreach( sourceAndTargetInterval ->
-		{
-			final Interval sourceInterval = sourceAndTargetInterval._1();
-			final Interval targetInterval = sourceAndTargetInterval._2();
+			final Interval sourceInterval = new FinalInterval( sourceMin, sourceMax );
+			final Interval targetInterval = new FinalInterval( targetMin, targetMax );
 
 			final N5Writer n5Local = n5Supplier.get();
 
@@ -292,10 +287,6 @@ public class N5DownsamplingSpark
 			}
 
 			downsampleImpl( source, target, downsamplingFactors );
-
-			final long[] gridPosition = new long[ dim ];
-			final CellGrid cellGrid = new CellGrid( outputDimensions, outputCellSize );
-			cellGrid.getCellPosition( Intervals.minAsLongArray( targetInterval ), gridPosition );
 
 			if ( !DataType.SERIALIZABLE.equals( n5Local.getDatasetAttributes( outputDatasetPath ).getDataType() ) )
 				N5Utils.saveBlock( ( RandomAccessibleInterval ) target, n5Local, outputDatasetPath, gridPosition );
