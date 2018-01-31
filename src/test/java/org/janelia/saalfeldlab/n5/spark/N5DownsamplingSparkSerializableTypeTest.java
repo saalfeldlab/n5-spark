@@ -201,8 +201,7 @@ public class N5DownsamplingSparkSerializableTypeTest
 		tearDown();
 
 		sparkContext = new JavaSparkContext( new SparkConf()
-//				.setMaster( "local[*]" )
-				.setMaster( "local" )
+				.setMaster( "local[*]" )
 				.setAppName( "N5DownsamplingTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
