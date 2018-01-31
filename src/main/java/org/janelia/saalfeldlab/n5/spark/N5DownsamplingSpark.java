@@ -158,7 +158,7 @@ public class N5DownsamplingSpark
 		for ( int scale = 1; ; ++scale )
 		{
 			final IsotropicScalingParameters isotropicScalingParameters = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( scale, fullScaleCellSize, pixelResolutionZtoXY );
-			final int[] cellSize = isotropicScalingParameters.cellSize;
+			final int[] cellSize = voxelDimensions != null ? isotropicScalingParameters.cellSize : fullScaleCellSize;
 			final int[] downsamplingFactors = isotropicScalingParameters.downsamplingFactors;
 
 			final long[] downsampledDimensions = fullScaleDimensions.clone();
