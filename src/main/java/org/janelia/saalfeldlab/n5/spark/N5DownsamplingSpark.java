@@ -37,6 +37,7 @@ import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodFactory;
 import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodUnsafe;
 import net.imglib2.algorithm.neighborhood.RectangleShape;
 import net.imglib2.img.Img;
+import net.imglib2.img.ImgFactory;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.img.list.ListImgFactory;
@@ -168,6 +169,10 @@ public class N5DownsamplingSpark
 			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() < Arrays.stream( cellSize ).max().getAsInt() )
 				break;
 
+			final int[] relativeDownsamplingFactors = new int[ downsamplingFactors.length ];
+			for ( int d = 0; d < downsamplingFactors.length; ++d )
+				relativeDownsamplingFactors[ d ] = downsamplingFactors[ d ] / scales.get( scale - 1 )[ d ];
+
 			if ( !needIntermediateDownsamplingInXY )
 			{
 				// downsample in XYZ
@@ -180,7 +185,14 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				runDownsampleTask( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
+
+				runDownsampleTask(
+						sparkContext,
+						n5Supplier,
+						inputDatasetPath,
+						outputDatasetPath,
+						relativeDownsamplingFactors
+					);
 			}
 			else
 			{
@@ -194,7 +206,14 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				runDownsampleTask( sparkContext, n5Supplier, inputXYDatasetPath, outputXYDatasetPath );
+
+				runDownsampleTask(
+						sparkContext,
+						n5Supplier,
+						inputXYDatasetPath,
+						outputXYDatasetPath,
+						new int[] { relativeDownsamplingFactors[ 0 ], relativeDownsamplingFactors[ 1 ], 1 }
+					);
 
 				// downsample in Z
 				final String inputDatasetPath = outputXYDatasetPath;
@@ -206,7 +225,14 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				runDownsampleTask( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
+
+				runDownsampleTask(
+						sparkContext,
+						n5Supplier,
+						inputDatasetPath,
+						outputDatasetPath,
+						new int[] { 1, 1, downsamplingFactors[ 2 ] }
+					);
 			}
 
 			final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
@@ -225,18 +251,12 @@ public class N5DownsamplingSpark
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String inputDatasetPath,
-			final String outputDatasetPath ) throws IOException
+			final String outputDatasetPath,
+			final int[] downsamplingFactors ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
-		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final DatasetAttributes outputAttributes = n5.getDatasetAttributes( outputDatasetPath );
-
-		final long[] inputDimensions = inputAttributes.getDimensions();
 		final long[] outputDimensions = outputAttributes.getDimensions();
-		final int[] downsamplingFactors = new int[ inputDimensions.length ];
-		for ( int d = 0; d < downsamplingFactors.length; ++d )
-			downsamplingFactors[ d ] = ( int ) ( inputDimensions[ d ] / outputDimensions[ d ] );
-
 		final int[] outputCellSize = outputAttributes.getBlockSize();
 		final int dim = outputCellSize.length;
 
@@ -271,22 +291,17 @@ public class N5DownsamplingSpark
 			else
 				previousScaleLevelImg = ( RandomAccessibleInterval ) N5SerializableUtils.open( n5Local, inputDatasetPath );
 
-			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceInterval );
+			final RandomAccessibleInterval< T > source = Views.interval( previousScaleLevelImg, sourceInterval );
 			final T type = Util.getTypeFromInterval( source );
 
-			final Img< T > target;
+			final ImgFactory< T > imgFactory;
 			if ( NativeType.class.isInstance( type ) )
-			{
-				final ArrayImgFactory arrayImgFactory = new ArrayImgFactory<>();
-				target = arrayImgFactory.create( targetInterval, type );
-			}
+				imgFactory = ( ImgFactory ) new ArrayImgFactory<>();
 			else
-			{
-				final ListImgFactory< T > listImgFactory = new ListImgFactory<>();
-				target = listImgFactory.create( targetInterval, type );
-			}
+				imgFactory = new ListImgFactory<>();
 
-			downsampleImpl( source, target, downsamplingFactors );
+			final Img< T > target = imgFactory.create( targetInterval, type );
+			downsampleImpl( source, Views.translate( target, targetMin ), downsamplingFactors );
 
 			if ( !DataType.SERIALIZABLE.equals( n5Local.getDatasetAttributes( outputDatasetPath ).getDataType() ) )
 				N5Utils.saveBlock( ( RandomAccessibleInterval ) target, n5Local, outputDatasetPath, gridPosition );
@@ -295,6 +310,9 @@ public class N5DownsamplingSpark
 		} );
 	}
 
+	/**
+	 *  adapted from bdv.export.Downsample
+	 */
 	@SuppressWarnings( { "rawtypes" } )
 	private static < T extends Type< T > & Add< T > & MulFloatingPoint > void downsampleImpl(
 			final RandomAccessible< T > input,
