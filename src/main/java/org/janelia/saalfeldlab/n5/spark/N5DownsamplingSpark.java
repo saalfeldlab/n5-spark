@@ -9,10 +9,12 @@ import java.util.List;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.janelia.saalfeldlab.n5.DataType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.imglib2.list.N5SerializableUtils;
 import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -20,17 +22,27 @@ import org.kohsuke.args4j.Option;
 
 import com.esotericsoftware.kryo.Kryo;
 
-import bdv.export.Downsample;
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
 import mpicbg.spim.data.sequence.VoxelDimensions;
+import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.neighborhood.Neighborhood;
+import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodFactory;
+import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodUnsafe;
+import net.imglib2.algorithm.neighborhood.RectangleShape;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellGrid;
+import net.imglib2.img.list.ListImgFactory;
 import net.imglib2.type.NativeType;
+import net.imglib2.type.Type;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.operators.Add;
+import net.imglib2.type.operators.MulFloatingPoint;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
@@ -167,7 +179,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
+				runDownsampleTask( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
 			else
 			{
@@ -181,7 +193,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				downsampleImpl( sparkContext, n5Supplier, inputXYDatasetPath, outputXYDatasetPath );
+				runDownsampleTask( sparkContext, n5Supplier, inputXYDatasetPath, outputXYDatasetPath );
 
 				// downsample in Z
 				final String inputDatasetPath = outputXYDatasetPath;
@@ -193,7 +205,7 @@ public class N5DownsamplingSpark
 						fullScaleAttributes.getDataType(),
 						fullScaleAttributes.getCompression()
 					);
-				downsampleImpl( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
+				runDownsampleTask( sparkContext, n5Supplier, inputDatasetPath, outputDatasetPath );
 			}
 
 			final String outputDatasetPath = Paths.get( rootOutputPath, "s" + scale ).toString();
@@ -207,7 +219,8 @@ public class N5DownsamplingSpark
 		return scales.toArray( new int[ 0 ][] );
 	}
 
-	private static < T extends NativeType< T > & RealType< T > > void downsampleImpl(
+	@SuppressWarnings( { "rawtypes", "unchecked" } )
+	private static < T extends Type< T > & Add< T > & MulFloatingPoint > void runDownsampleTask(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String inputDatasetPath,
@@ -252,19 +265,103 @@ public class N5DownsamplingSpark
 
 		sparkContext.parallelize( sourceAndTargetIntervals, Math.min( sourceAndTargetIntervals.size(), MAX_PARTITIONS ) ).foreach( sourceAndTargetInterval ->
 		{
+			final Interval sourceInterval = sourceAndTargetInterval._1();
+			final Interval targetInterval = sourceAndTargetInterval._2();
+
 			final N5Writer n5Local = n5Supplier.get();
 
-			final RandomAccessibleInterval< T > previousScaleLevelImg = N5Utils.open( n5Local, inputDatasetPath );
-			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceAndTargetInterval._1() );
-			final Img< T > target = new ArrayImgFactory< T >().create( sourceAndTargetInterval._2(), Util.getTypeFromInterval( source ) );
-			Downsample.downsample( source, target, downsamplingFactors );
+			final RandomAccessibleInterval< T > previousScaleLevelImg;
+			if ( !DataType.SERIALIZABLE.equals( n5Local.getDatasetAttributes( inputDatasetPath ).getDataType() ) )
+				previousScaleLevelImg = ( RandomAccessibleInterval ) N5Utils.open( n5Local, inputDatasetPath );
+			else
+				previousScaleLevelImg = ( RandomAccessibleInterval ) N5SerializableUtils.open( n5Local, inputDatasetPath );
+
+			final RandomAccessibleInterval< T > source = Views.offsetInterval( previousScaleLevelImg, sourceInterval );
+			final T type = Util.getTypeFromInterval( source );
+
+			final Img< T > target;
+			if ( NativeType.class.isInstance( type ) )
+			{
+				final ArrayImgFactory arrayImgFactory = new ArrayImgFactory<>();
+				target = arrayImgFactory.create( targetInterval, type );
+			}
+			else
+			{
+				final ListImgFactory< T > listImgFactory = new ListImgFactory<>();
+				target = listImgFactory.create( targetInterval, type );
+			}
+
+			downsampleImpl( source, target, downsamplingFactors );
 
 			final long[] gridPosition = new long[ dim ];
 			final CellGrid cellGrid = new CellGrid( outputDimensions, outputCellSize );
-			cellGrid.getCellPosition( Intervals.minAsLongArray( sourceAndTargetInterval._2() ), gridPosition );
+			cellGrid.getCellPosition( Intervals.minAsLongArray( targetInterval ), gridPosition );
 
-			N5Utils.saveBlock( target, n5Local, outputDatasetPath, gridPosition );
+			if ( !DataType.SERIALIZABLE.equals( n5Local.getDatasetAttributes( outputDatasetPath ).getDataType() ) )
+				N5Utils.saveBlock( ( RandomAccessibleInterval ) target, n5Local, outputDatasetPath, gridPosition );
+			else
+				N5SerializableUtils.saveBlock( ( RandomAccessibleInterval ) target, n5Local, outputDatasetPath, gridPosition );
 		} );
+	}
+
+	@SuppressWarnings( { "rawtypes" } )
+	private static < T extends Type< T > & Add< T > & MulFloatingPoint > void downsampleImpl(
+			final RandomAccessible< T > input,
+			final RandomAccessibleInterval< T > output,
+			final int[] factor )
+	{
+		assert input.numDimensions() == output.numDimensions();
+		assert input.numDimensions() == factor.length;
+
+		final int n = input.numDimensions();
+		final RectangleNeighborhoodFactory< T > f = RectangleNeighborhoodUnsafe.< T >factory();
+		final long[] dim = new long[ n ];
+		for ( int d = 0; d < n; ++d )
+			dim[ d ] = factor[ d ];
+		final Interval spanInterval = new FinalInterval( dim );
+
+		final long[] minRequiredInput = new long[ n ];
+		final long[] maxRequiredInput = new long[ n ];
+		output.min( minRequiredInput );
+		output.max( maxRequiredInput );
+		for ( int d = 0; d < n; ++d )
+		{
+			minRequiredInput[ d ] *= factor[ d ];
+			maxRequiredInput[ d ] *= factor[ d ];
+			maxRequiredInput[ d ] += factor[ d ] - 1;
+		}
+		final RandomAccessibleInterval< T > requiredInput = Views.interval( input, new FinalInterval( minRequiredInput, maxRequiredInput ) );
+
+		final RectangleShape.NeighborhoodsAccessible< T > neighborhoods = new RectangleShape.NeighborhoodsAccessible<>( requiredInput, spanInterval, f );
+		final RandomAccess< Neighborhood< T > > block = neighborhoods.randomAccess();
+
+		long size = 1;
+		for ( int d = 0; d < n; ++d )
+			size *= factor[ d ];
+		final double scale = 1.0 / size;
+
+		final Cursor< T > out = Views.iterable( output ).localizingCursor();
+		while( out.hasNext() )
+		{
+			final T o = out.next();
+			if ( RealType.class.isInstance( o ) )
+			{
+				double sum = 0;
+				for ( int d = 0; d < n; ++d )
+					block.setPosition( out.getLongPosition( d ) * factor[ d ], d );
+				for ( final Object i : ( Neighborhood ) block.get() )
+					sum += ( ( RealType ) i ).getRealDouble();
+				( ( RealType< ? > ) o ).setReal( sum * scale );
+			}
+			else
+			{
+				for ( int d = 0; d < n; ++d )
+					block.setPosition( out.getLongPosition( d ) * factor[ d ], d );
+				for ( final T i : block.get() )
+					o.add( i );
+				o.mul( scale );
+			}
+		}
 	}
 
 
