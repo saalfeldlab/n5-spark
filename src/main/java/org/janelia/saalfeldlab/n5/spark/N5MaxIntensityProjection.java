@@ -42,8 +42,10 @@ import scala.Tuple2;
 
 public class N5MaxIntensityProjection
 {
-	private static class MipKey
+	private static class MipKey implements Serializable
 	{
+		private static final long serialVersionUID = -8937067905917623131L;
+
 		private final String key;
 
 		public final int dimension;
