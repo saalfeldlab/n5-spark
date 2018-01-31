@@ -164,7 +164,7 @@ public class N5DownsamplingSpark
 			for ( int d = 0; d < downsampledDimensions.length; ++d )
 				downsampledDimensions[ d ] /= downsamplingFactors[ d ];
 
-			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() <= 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() <= Arrays.stream( cellSize ).max().getAsInt() )
+			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() < Arrays.stream( cellSize ).max().getAsInt() )
 				break;
 
 			if ( !needIntermediateDownsamplingInXY )
