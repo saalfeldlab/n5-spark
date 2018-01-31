@@ -21,8 +21,12 @@ import org.junit.Test;
 
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
 import mpicbg.spim.data.sequence.VoxelDimensions;
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.type.numeric.integer.ByteType;
 import net.imglib2.util.Intervals;
+import net.imglib2.view.Views;
 
 public class N5DownsamplingSparkTest
 {
@@ -63,14 +67,14 @@ public class N5DownsamplingSparkTest
 
 		final byte[] data = new byte[ ( int ) Intervals.numElements( dimensions ) ];
 		for ( byte i = 0; i < data.length; ++i )
-			data[ i ] = i;
+			data[ i ] = ( byte ) ( i + 1 );
 
 		N5Utils.save( ArrayImgs.bytes( data, dimensions ), n5, datasetPath, cellSize, new GzipCompression() );
 	}
 
 	private void cleanup( final N5Writer n5 ) throws IOException
 	{
-		n5.remove( "" );
+		n5.remove();
 	}
 
 	@Test
@@ -175,29 +179,29 @@ public class N5DownsamplingSparkTest
 
 		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, n5Supplier, datasetPath );
 
-		Assert.assertTrue( scales.length == 2 );
+		Assert.assertTrue( scales.length == 3 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
 		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, scales[ 1 ] );
+		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, scales[ 2 ] );
 
-		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
 
 		Assert.assertTrue(
-				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 2 &&
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
 				n5.datasetExists( datasetPath ) &&
-				n5.datasetExists( downsampledDatasetPath ) );
+				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
+				n5.datasetExists( downsampledLastDatasetPath ) );
 
-		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
-		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, downsampledAttributes.getDimensions() );
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, downsampledAttributes.getBlockSize() );
 
-		for ( final byte zCoord : new byte[] { 0, 1 } )
-		{
-			final byte zOffset = ( byte ) ( zCoord * 32 );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 0  + 1  + 4  + 5  + 16 + 17 + 20 + 21 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 2  + 3  + 6  + 7  + 18 + 19 + 22 + 23 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 8  + 9  + 12 + 13 + 24 + 25 + 28 + 29 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 10 + 11 + 14 + 15 + 26 + 27 + 30 + 31 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
-		}
+		final RandomAccessibleInterval< ByteType > downsampledImg = N5Utils.open( n5, downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, Intervals.dimensionsAsLongArray( downsampledImg ) );
+		final Cursor< ByteType > downsampledImgCursor = Views.iterable( downsampledImg ).cursor();
+
+		Assert.assertEquals( ( byte ) Math.round( ( 64 * 65 / 2 ) / 64. ), downsampledImgCursor.next().get() );
 
 		cleanup( n5 );
 	}
@@ -211,29 +215,30 @@ public class N5DownsamplingSparkTest
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
 		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, n5Supplier, datasetPath, voxelSize );
 
-		Assert.assertTrue( scales.length == 2 );
+		Assert.assertTrue( scales.length == 3 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
 		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, scales[ 1 ] );
+		Assert.assertArrayEquals( new int[] { 4, 4, 2 }, scales[ 2 ] );
 
-		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
 
 		Assert.assertTrue(
-				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 2 &&
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
 				n5.datasetExists( datasetPath ) &&
-				n5.datasetExists( downsampledDatasetPath ) );
+				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
+				n5.datasetExists( downsampledLastDatasetPath ) );
 
-		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
-		Assert.assertArrayEquals( new long[] { 2, 2, 4 }, downsampledAttributes.getDimensions() );
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 2 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 1, 1, 2 }, downsampledAttributes.getBlockSize() );
 
-		for ( final byte zCoord : new byte[] { 0, 1 } )
-		{
-			final byte zOffset = ( byte ) ( zCoord * 32 );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 0  + 1  + 4  + 5  ) / 4. ), ( byte ) Math.round( zOffset + ( 16 + 17 + 20 + 21 ) / 4. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 2  + 3  + 6  + 7  ) / 4. ), ( byte ) Math.round( zOffset + ( 18 + 19 + 22 + 23 ) / 4. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 8  + 9  + 12 + 13 ) / 4. ), ( byte ) Math.round( zOffset + ( 24 + 25 + 28 + 29 ) / 4. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 10 + 11 + 14 + 15 ) / 4. ), ( byte ) Math.round( zOffset + ( 26 + 27 + 30 + 31 ) / 4. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
-		}
+		final RandomAccessibleInterval< ByteType > downsampledImg = N5Utils.open( n5, downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 2 }, Intervals.dimensionsAsLongArray( downsampledImg ) );
+		final Cursor< ByteType > downsampledImgCursor = Views.iterable( downsampledImg ).cursor();
+
+		Assert.assertEquals( ( byte ) Math.round( ( 32 * 33 / 2 ) / 32. ), downsampledImgCursor.next().get() );
+		Assert.assertEquals( ( byte ) Math.round( ( 32 * 33 / 2 + 32 * 32 ) / 32. ), downsampledImgCursor.next().get() );
 
 		cleanup( n5 );
 	}
