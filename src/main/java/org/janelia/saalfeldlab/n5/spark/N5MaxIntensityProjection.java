@@ -364,18 +364,6 @@ public class N5MaxIntensityProjection
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputPath() { return outputPath; }
 		public TiffCompression getTiffCompression() { return tiffCompression; }
-		public int[] getMipCellsStep() { return parseIntArray( mipCellsStep ); }
-
-		private static int[] parseIntArray( final String str )
-		{
-			if ( str == null )
-				return null;
-
-			final String[] tokens = str.split( "," );
-			final int[] values = new int[ tokens.length ];
-			for ( int i = 0; i < values.length; i++ )
-				values[ i ] = Integer.parseInt( tokens[ i ] );
-			return values;
-		}
+		public int[] getMipCellsStep() { return CmdUtils.parseIntArray( mipCellsStep ); }
 	}
 }

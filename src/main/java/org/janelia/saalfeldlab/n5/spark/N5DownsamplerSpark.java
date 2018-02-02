@@ -267,19 +267,19 @@ public class N5DownsamplerSpark
 	{
 		private static final long serialVersionUID = -1467734459169624759L;
 
-		@Option(name = "-n", aliases = { "--n5" }, required = true,
+		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
 				usage = "Path to an N5 container.")
 		private String n5Path;
 
-		@Option(name = "-i", aliases = { "--input" }, required = true,
+		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
 				usage = "Path to the input dataset within the N5 container (e.g. data/group/s0).")
 		private String inputDatasetPath;
 
-		@Option(name = "-o", aliases = { "--output" }, required = true,
+		@Option(name = "-o", aliases = { "--outputDatasetPath" }, required = true,
 				usage = "Path to the output dataset to be created (e.g. data/group/s1).")
 		private String outputDatasetPath;
 
-		@Option(name = "-f", aliases = { "--factor" }, required = true,
+		@Option(name = "-f", aliases = { "--factors" }, required = true,
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
@@ -305,31 +305,7 @@ public class N5DownsamplerSpark
 		public String getN5Path() { return n5Path; }
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
-		public int[] getDownsamplingFactors() { return parseIntArray( downsamplingFactors ); }
-		public long[] getOffset() { return parseLongArray( offset ); }
-
-		private static int[] parseIntArray( final String str )
-		{
-			if ( str == null )
-				return null;
-
-			final String[] tokens = str.split( "," );
-			final int[] values = new int[ tokens.length ];
-			for ( int i = 0; i < values.length; i++ )
-				values[ i ] = Integer.parseInt( tokens[ i ] );
-			return values;
-		}
-
-		private static long[] parseLongArray( final String str )
-		{
-			if ( str == null )
-				return null;
-
-			final String[] tokens = str.split( "," );
-			final long[] values = new long[ tokens.length ];
-			for ( int i = 0; i < values.length; i++ )
-				values[ i ] = Long.parseLong( tokens[ i ] );
-			return values;
-		}
+		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
+		public long[] getOffset() { return CmdUtils.parseLongArray( offset ); }
 	}
 }
