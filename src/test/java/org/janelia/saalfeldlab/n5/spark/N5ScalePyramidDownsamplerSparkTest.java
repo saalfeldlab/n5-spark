@@ -12,21 +12,22 @@ import org.janelia.saalfeldlab.n5.GzipCompression;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
-import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator;
-import org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark.IsotropicScalingEstimator.IsotropicScalingParameters;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import mpicbg.spim.data.sequence.FinalVoxelDimensions;
-import mpicbg.spim.data.sequence.VoxelDimensions;
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.Util;
+import net.imglib2.view.Views;
 
-public class N5DownsamplingSparkTest
+public class N5ScalePyramidDownsamplerSparkTest
 {
-	static private final String basePath = System.getProperty("user.home") + "/tmp/n5-downsampling-test";
+	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
 	static private final String datasetPath = "data";
 
 	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
@@ -56,24 +57,12 @@ public class N5DownsamplingSparkTest
 			cleanup( n5Supplier.get() );
 	}
 
-	private void createDataset( final N5Writer n5 ) throws IOException
-	{
-		final long[] dimensions = new long[] { 4, 4, 4 };
-		final int[] cellSize = new int[] { 1, 1, 1 };
-
-		final byte[] data = new byte[ ( int ) Intervals.numElements( dimensions ) ];
-		for ( byte i = 0; i < data.length; ++i )
-			data[ i ] = i;
-
-		N5Utils.save( ArrayImgs.bytes( data, dimensions ), n5, datasetPath, cellSize, new GzipCompression() );
-	}
-
 	private void cleanup( final N5Writer n5 ) throws IOException
 	{
-		n5.remove( "" );
+		n5.remove();
 	}
 
-	@Test
+	/*@Test
 	public void testIsotropicScalingParameters()
 	{
 		IsotropicScalingParameters testParams;
@@ -165,51 +154,53 @@ public class N5DownsamplingSparkTest
 		testParams = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( 6, new int[] { 8, 8, 8 }, 4 );
 		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, testParams.cellSize );
 		Assert.assertArrayEquals( new int[] { 64, 64, 16 }, testParams.downsamplingFactors );
-	}
+	}*/
 
 	@Test
 	public void testDownsampling() throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
-		createDataset( n5 );
+		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 1, 1, 1 } );
 
-		final int[][] scales = N5DownsamplingSpark.downsample( sparkContext, n5Supplier, datasetPath );
+		final int[][] scales = N5ScalePyramidDownsamplerSpark.downsample(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				new int[] { 2, 2, 2 }
+			);
 
-		Assert.assertTrue( scales.length == 2 );
+		Assert.assertTrue( scales.length == 3 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
 		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, scales[ 1 ] );
+		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, scales[ 2 ] );
 
-		final String downsampledDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
 
 		Assert.assertTrue(
-				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 2 &&
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
 				n5.datasetExists( datasetPath ) &&
-				n5.datasetExists( downsampledDatasetPath ) );
+				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
+				n5.datasetExists( downsampledLastDatasetPath ) );
 
-		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
-		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, downsampledAttributes.getDimensions() );
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, downsampledAttributes.getBlockSize() );
 
-		for ( final byte zCoord : new byte[] { 0, 1 } )
-		{
-			final byte zOffset = ( byte ) ( zCoord * 32 );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 0  + 1  + 4  + 5  + 16 + 17 + 20 + 21 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 2  + 3  + 6  + 7  + 18 + 19 + 22 + 23 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 8  + 9  + 12 + 13 + 24 + 25 + 28 + 29 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
-			Assert.assertArrayEquals( new byte[] { ( byte ) Math.round( zOffset + ( 10 + 11 + 14 + 15 + 26 + 27 + 30 + 31 ) / 8. ) }, ( byte[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
-		}
+		final long numElements = Intervals.numElements( new long[] { 4, 4, 4 } );
+		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) ) );
 
 		cleanup( n5 );
 	}
 
-	@Test
+	/*@Test
 	public void testIsotropicDownsampling() throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5 );
 
 		final VoxelDimensions voxelSize = new FinalVoxelDimensions( "um", 0.1, 0.1, 0.2 );
-		final int[][] scales = N5DownsamplingSpark.downsampleIsotropic( sparkContext, n5Supplier, datasetPath, voxelSize );
+		final int[][] scales = N5ScalePyramidDownsamplerSpark.downsampleIsotropic( sparkContext, n5Supplier, datasetPath, voxelSize );
 
 		Assert.assertTrue( scales.length == 2 );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scales[ 0 ] );
@@ -236,5 +227,24 @@ public class N5DownsamplingSparkTest
 		}
 
 		cleanup( n5 );
+	}*/
+
+
+	private void createDataset( final N5Writer n5, final long[] dimensions, final int[] blockSize ) throws IOException
+	{
+		final int[] data = new int[ ( int ) Intervals.numElements( dimensions ) ];
+		for ( int i = 0; i < data.length; ++i )
+			data[ i ] = i + 1;
+		N5Utils.save( ArrayImgs.ints( data, dimensions ), n5, datasetPath, blockSize, new GzipCompression() );
+	}
+
+	private int[] getArrayFromRandomAccessibleInterval( final RandomAccessibleInterval< IntType > rai )
+	{
+		final int[] arr = new int[ ( int ) Intervals.numElements( rai ) ];
+		final Cursor< IntType > cursor = Views.flatIterable( rai ).cursor();
+		int i = 0;
+		while ( cursor.hasNext() )
+			arr[ i++ ] = cursor.next().get();
+		return arr;
 	}
 }
