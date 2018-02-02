@@ -322,7 +322,7 @@ public class N5DownsamplerSpark
 				usage = "Path to the output dataset to be created (e.g. data/group/s1).")
 		private String outputDatasetPath;
 
-		@Option(name = "-f", aliases = { "--factor" }, required = false,
+		@Option(name = "-f", aliases = { "--factor" }, required = true,
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
