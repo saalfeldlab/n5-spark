@@ -17,6 +17,7 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import bdv.export.Downsample;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
@@ -148,87 +149,29 @@ public class N5DownsamplerSpark
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
 
-//			if ( Intervals.contains( translatedSource, sourceInterval ) )
-//			{
-				// source interval is fully contained in the image, use simple downsampler
-//				final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( source, sourceInterval );
-//				downsampleInterval( sourceBlock, targetBlock, downsamplingFactors );
-//			}
-//			else
+			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
+			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedSource, sourceInterval );
+
+			final long[] definedSourceMin = new long[ dim ], definedSourceMax = new long[ dim ];
+			for ( int d = 0; d < dim; ++d )
 			{
-//				final ExtendedRandomAccessibleInterval< T, RandomAccessibleInterval< T > > extendedSource = Views.extendZero( source );
-//				final RandomAccessible< T > translatedExtendedSource = Views.translate( extendedSource, offset );
-//				final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedExtendedSource, sourceInterval );
-				final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
-				final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedSource, sourceInterval );
-
-//				final Interval translatedSourceInterval = new FinalInterval( translatedSource );
-				final long[] definedSourceMin = new long[ dim ], definedSourceMax = new long[ dim ];
-				for ( int d = 0; d < dim; ++d )
-				{
-					definedSourceMin[ d ] = Math.max( translatedSource.min( d ) - sourceMin[ d ], 0 );
-					definedSourceMax[ d ] = translatedSource.dimension( d ) - 1 - sourceMin[ d ] + offset[ d ];
-				}
-				final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
-
-				downsampleIntervalWithOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
+				definedSourceMin[ d ] = Math.max( translatedSource.min( d ) - sourceMin[ d ], 0 );
+				definedSourceMax[ d ] = translatedSource.dimension( d ) - 1 - sourceMin[ d ] + offset[ d ];
 			}
+			final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
+
+			if ( Intervals.contains( definedSourceInterval, sourceBlock ) )
+				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
+			else
+				downsampleIntervalWithOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
 
 			N5Utils.saveBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
 		} );
 	}
 
 	/**
-	 * Based on the code from bdv.export.Downsample class.
+	 * Based on {@link bdv.export.Downsample}.
 	 */
-	/*private static < T extends RealType< T > > void downsampleInterval(
-			final RandomAccessible< T > input,
-			final RandomAccessibleInterval< T > output,
-			final int[] factor )
-	{
-		assert input.numDimensions() == output.numDimensions();
-		assert input.numDimensions() == factor.length;
-
-		final int n = input.numDimensions();
-		final RectangleNeighborhoodFactory< T > f = RectangleNeighborhoodUnsafe.< T >factory();
-		final long[] dim = new long[ n ];
-		for ( int d = 0; d < n; ++d )
-			dim[ d ] = factor[ d ];
-		final Interval spanInterval = new FinalInterval( dim );
-
-		final long[] minRequiredInput = new long[ n ];
-		final long[] maxRequiredInput = new long[ n ];
-		output.min( minRequiredInput );
-		output.max( maxRequiredInput );
-		for ( int d = 0; d < n; ++d )
-		{
-			minRequiredInput[ d ] *= factor[ d ];
-			maxRequiredInput[ d ] *= factor[ d ];
-			maxRequiredInput[ d ] += factor[ d ] - 1;
-		}
-		final RandomAccessibleInterval< T > requiredInput = Views.interval( input, new FinalInterval( minRequiredInput, maxRequiredInput ) );
-
-		final RectangleShape.NeighborhoodsAccessible< T > neighborhoods = new RectangleShape.NeighborhoodsAccessible<>( requiredInput, spanInterval, f );
-		final RandomAccess< Neighborhood< T > > block = neighborhoods.randomAccess();
-
-		long size = 1;
-		for ( int d = 0; d < n; ++d )
-			size *= factor[ d ];
-		final double scale = 1.0 / size;
-
-		final Cursor< T > out = Views.iterable( output ).localizingCursor();
-		while( out.hasNext() )
-		{
-			final T o = out.next();
-			for ( int d = 0; d < n; ++d )
-				block.setPosition( out.getLongPosition( d ) * factor[ d ], d );
-			double sum = 0;
-			for ( final T i : block.get() )
-				sum += i.getRealDouble();
-			o.setReal( sum * scale );
-		}
-	}*/
-
 	private static < T extends RealType< T > > void downsampleIntervalWithOutOfBoundsCheck(
 			final RandomAccessible< T > input,
 			final RandomAccessibleInterval< T > output,

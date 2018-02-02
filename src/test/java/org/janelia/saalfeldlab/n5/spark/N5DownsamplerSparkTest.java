@@ -23,6 +23,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
 public class N5DownsamplerSparkTest
@@ -84,17 +85,17 @@ public class N5DownsamplerSparkTest
 		for ( final byte zCoord : new byte[] { 0, 1 } )
 		{
 			final byte zOffset = ( byte ) ( zCoord * 32 );
-			Assert.assertArrayEquals( new int[] { ( int ) Math.round( zOffset + ( 1  + 2  + 5  + 6  + 17 + 18 + 21 + 22 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new int[] { ( int ) Math.round( zOffset + ( 3  + 4  + 7  + 8  + 19 + 20 + 23 + 24 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
-			Assert.assertArrayEquals( new int[] { ( int ) Math.round( zOffset + ( 9  + 10 + 13 + 14 + 25 + 26 + 29 + 30 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
-			Assert.assertArrayEquals( new int[] { ( int ) Math.round( zOffset + ( 11 + 12 + 15 + 16 + 27 + 28 + 31 + 32 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
+			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 1  + 2  + 5  + 6  + 17 + 18 + 21 + 22 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 0, zCoord } ).getData() );
+			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 3  + 4  + 7  + 8  + 19 + 20 + 23 + 24 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 0, zCoord } ).getData() );
+			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 9  + 10 + 13 + 14 + 25 + 26 + 29 + 30 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
+			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 11 + 12 + 15 + 16 + 27 + 28 + 31 + 32 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
 		}
 
 		cleanup( n5 );
 	}
 
 	@Test
-	public void testDownsamplingND() throws IOException
+	public void testDownsamplingNDRandomized() throws IOException
 	{
 		final Random rnd = new Random();
 		final int dim = rnd.nextInt( 7 ) + 1;
@@ -131,7 +132,7 @@ public class N5DownsamplerSparkTest
 		Assert.assertArrayEquals( blockSize, downsampledAttributes.getBlockSize() );
 
 		final long numElements = Intervals.numElements( dimensions );
-		Assert.assertArrayEquals( new int[] { ( int ) Math.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
+		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
 
 		cleanup( n5 );
 	}
@@ -160,8 +161,8 @@ public class N5DownsamplerSparkTest
 			Assert.assertArrayEquals(
 					new int[] {
 							1,
-							( int ) Math.round( ( 2 + 3 + 4 + 5 ) / 4. ),
-							( int ) Math.round( ( 6 + 7 + 8 + 9 ) / 4. )
+							( int ) Util.round( ( 2 + 3 + 4 + 5 ) / 4. ),
+							( int ) Util.round( ( 6 + 7 + 8 + 9 ) / 4. )
 						},
 					getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 				);
@@ -193,9 +194,9 @@ public class N5DownsamplerSparkTest
 
 			Assert.assertArrayEquals(
 					new int[] {
-							( int ) Math.round( ( 2 + 3 + 4  ) / 3. ),
-							( int ) Math.round( ( 5 + 6 + 7  ) / 3. ),
-							( int ) Math.round( ( 8 + 9 + 10 ) / 3. )
+							( int ) Util.round( ( 2 + 3 + 4  ) / 3. ),
+							( int ) Util.round( ( 5 + 6 + 7  ) / 3. ),
+							( int ) Util.round( ( 8 + 9 + 10 ) / 3. )
 						},
 					getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 				);
@@ -229,8 +230,8 @@ public class N5DownsamplerSparkTest
 
 				Assert.assertArrayEquals(
 						new int[] {
-								( int ) Math.round( ( 11 + 16 + 21 ) / 3. ),
-								( int ) Math.round( ( 12 + 13 + 14 + 17 + 18 + 19 + 22 + 23 + 24 ) / 9. ),
+								( int ) Util.round( ( 11 + 16 + 21 ) / 3. ),
+								( int ) Util.round( ( 12 + 13 + 14 + 17 + 18 + 19 + 22 + 23 + 24 ) / 9. ),
 							},
 						getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 					);
