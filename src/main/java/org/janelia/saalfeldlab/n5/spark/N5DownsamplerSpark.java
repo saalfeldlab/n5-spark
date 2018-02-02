@@ -295,13 +295,27 @@ public class N5DownsamplerSpark
 			) )
 		{
 			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
-			downsample(
-					sparkContext,
-					n5Supplier,
-					parsedArgs.getInputDatasetPath(),
-					parsedArgs.getOutputDatasetPath(),
-					parsedArgs.getDownsamplingFactors()
-				);
+			if ( parsedArgs.getOffset() != null )
+			{
+				downsampleWithOffset(
+						sparkContext,
+						n5Supplier,
+						parsedArgs.getInputDatasetPath(),
+						parsedArgs.getOutputDatasetPath(),
+						parsedArgs.getDownsamplingFactors(),
+						parsedArgs.getOffset()
+					);
+			}
+			else
+			{
+				downsample(
+						sparkContext,
+						n5Supplier,
+						parsedArgs.getInputDatasetPath(),
+						parsedArgs.getOutputDatasetPath(),
+						parsedArgs.getDownsamplingFactors()
+					);
+			}
 		}
 		System.out.println( "Done" );
 	}
@@ -310,15 +324,15 @@ public class N5DownsamplerSpark
 	{
 		private static final long serialVersionUID = -1467734459169624759L;
 
-		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
+		@Option(name = "-n", aliases = { "--n5" }, required = true,
 				usage = "Path to an N5 container.")
 		private String n5Path;
 
-		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
+		@Option(name = "-i", aliases = { "--input" }, required = true,
 				usage = "Path to the input dataset within the N5 container (e.g. data/group/s0).")
 		private String inputDatasetPath;
 
-		@Option(name = "-o", aliases = { "--outputDatasetPath" }, required = true,
+		@Option(name = "-o", aliases = { "--output" }, required = true,
 				usage = "Path to the output dataset to be created (e.g. data/group/s1).")
 		private String outputDatasetPath;
 
@@ -326,15 +340,30 @@ public class N5DownsamplerSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
-		public Arguments( final String... args ) throws CmdLineException
+		@Option(name = "--offset", required = false,
+				usage = "Offset.")
+		private String offset;
+
+		public Arguments( final String... args ) throws IllegalArgumentException
 		{
-			new CmdLineParser( this ).parseArgument( args );
+			final CmdLineParser parser = new CmdLineParser( this );
+			try
+			{
+				parser.parseArgument( args );
+			}
+			catch ( final CmdLineException e )
+			{
+				System.err.println( e.getMessage() );
+				parser.printUsage( System.err );
+				System.exit( 1 );
+			}
 		}
 
 		public String getN5Path() { return n5Path; }
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getDownsamplingFactors() { return parseIntArray( downsamplingFactors ); }
+		public long[] getOffset() { return parseLongArray( offset ); }
 
 		private static int[] parseIntArray( final String str )
 		{
@@ -345,6 +374,18 @@ public class N5DownsamplerSpark
 			final int[] values = new int[ tokens.length ];
 			for ( int i = 0; i < values.length; i++ )
 				values[ i ] = Integer.parseInt( tokens[ i ] );
+			return values;
+		}
+
+		private static long[] parseLongArray( final String str )
+		{
+			if ( str == null )
+				return null;
+
+			final String[] tokens = str.split( "," );
+			final long[] values = new long[ tokens.length ];
+			for ( int i = 0; i < values.length; i++ )
+				values[ i ] = Long.parseLong( tokens[ i ] );
 			return values;
 		}
 	}
