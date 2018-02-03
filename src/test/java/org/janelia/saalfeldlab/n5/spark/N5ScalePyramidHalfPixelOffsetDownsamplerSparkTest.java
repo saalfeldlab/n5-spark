@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -22,7 +23,6 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.util.Intervals;
-import net.imglib2.util.Pair;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
@@ -69,25 +69,22 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 1, 1, 1 } );
 
-		final Pair< int[][], long[][] > scalesAndOffsets = N5ScalePyramidHalfPixelOffsetDownsamplerSpark.downsampleScalePyramidWithHalfPixelOffset(
+		final List< String > scalePyramidDatasets = N5ScalePyramidHalfPixelOffsetDownsamplerSpark.downsampleScalePyramidWithHalfPixelOffset(
 				sparkContext,
 				n5Supplier,
 				datasetPath
 			);
 
-		Assert.assertTrue( scalesAndOffsets.getA().length == 3 );
-		Assert.assertTrue( scalesAndOffsets.getB().length == 3 );
+		Assert.assertEquals( 2, scalePyramidDatasets.size() );
 
-		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scalesAndOffsets.getA()[ 0 ] );
-		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, scalesAndOffsets.getA()[ 1 ] );
-		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, scalesAndOffsets.getA()[ 2 ] );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, n5.getAttribute( scalePyramidDatasets.get( 0 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
+		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, n5.getAttribute( scalePyramidDatasets.get( 1 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
-		Assert.assertArrayEquals( new long[] { 0, 0, 0 }, scalesAndOffsets.getB()[ 0 ] );
-		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, scalesAndOffsets.getB()[ 1 ] );
-		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, scalesAndOffsets.getB()[ 2 ] );
+		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, n5.getAttribute( scalePyramidDatasets.get( 0 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.OFFSETS_ATTRIBUTE_KEY, long[].class ) );
+		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, n5.getAttribute( scalePyramidDatasets.get( 1 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.OFFSETS_ATTRIBUTE_KEY, long[].class ) );
 
-		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
-		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
+		final String downsampledIntermediateDatasetPath = Paths.get( scalePyramidDatasets.get( 0 ) ).toString();
+		final String downsampledLastDatasetPath = Paths.get( scalePyramidDatasets.get( 1 ) ).toString();
 
 		Assert.assertTrue(
 				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
