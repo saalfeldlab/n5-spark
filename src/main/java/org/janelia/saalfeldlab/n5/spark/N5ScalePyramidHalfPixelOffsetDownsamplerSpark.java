@@ -18,14 +18,10 @@ import org.kohsuke.args4j.Option;
 
 import com.esotericsoftware.kryo.Kryo;
 
-import net.imglib2.util.Pair;
-import net.imglib2.util.ValuePair;
-
 public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 {
-	private static final int MAX_PARTITIONS = 15000;
-	private static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
-	private static final String OFFSET_ATTRIBUTE_KEY = "offset";
+	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
+	public static final String OFFSETS_ATTRIBUTE_KEY = "offsets";
 
 	/**
 	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the factor of 2 in all dimensions using half-pixel offset.
@@ -39,9 +35,9 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	 * @param datasetPath
 	 * 			Path to the full-scale dataset
 	 *
-	 * @return downsampling factors for all scales including the input (full scale)
+	 * @return downsampled dataset paths within the same N5 container
 	 */
-	public static Pair< int[][], long[][] > downsampleScalePyramidWithHalfPixelOffset(
+	public static List< String > downsampleScalePyramidWithHalfPixelOffset(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath ) throws IOException
@@ -88,15 +84,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		final long[] relativeOffset = new long[ dim ];
 		Arrays.fill( relativeOffset, 1 );
 
-		final List< int[] > scales = new ArrayList<>();
-		{
-			final int[] fullScaleDownsamplingFactors = new int[ dim ];
-			Arrays.fill( fullScaleDownsamplingFactors, 1 );
-			scales.add( fullScaleDownsamplingFactors );
-		}
-
-		final List< long[] > offsets = new ArrayList<>();
-		offsets.add( new long[ dim ] );
+		final List< String > downsampledDatasets = new ArrayList<>();
 
 		// generate half-pixel shifted scale pyramid
 		for ( int scale = 1; ; ++scale )
@@ -132,15 +120,13 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 				offset[ d ] = Math.round( Math.pow( relativeDownsamplingFactors[ d ], scale - 1 ) );
 
 			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleFactors );
-			n5.setAttribute( outputDatasetPath, OFFSET_ATTRIBUTE_KEY, offset );
+			n5.setAttribute( outputDatasetPath, OFFSETS_ATTRIBUTE_KEY, offset );
 
-			scales.add( scaleFactors );
-			offsets.add( offset );
+			downsampledDatasets.add( outputDatasetPath );
 		}
 
 		N5RemoveSpark.remove( sparkContext, n5Supplier, intermediateOutputPath );
-
-		return new ValuePair<>( scales.toArray( new int[ 0 ][] ), offsets.toArray( new long[ 0 ][] ) );
+		return downsampledDatasets;
 	}
 
 
@@ -148,28 +134,19 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	{
 		final Arguments parsedArgs = new Arguments( args );
 
-		final Pair< int[][], long[][] > scalesAndOffsets;
-
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
 				.setAppName( "N5DownsamplingSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
 			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
-			scalesAndOffsets = downsampleScalePyramidWithHalfPixelOffset(
-					sparkContext,
-					n5Supplier,
-					parsedArgs.getInputDatasetPath()
-				);
-		}
 
-		System.out.println();
-		System.out.println( "Scale levels:" );
-		for ( int i = 0; i < scalesAndOffsets.getA().length; ++i )
-			System.out.println( "  " + i + ": " + Arrays.toString( scalesAndOffsets.getA()[ i ] ) );
-		System.out.println( "Offsets:" );
-		for ( int i = 0; i < scalesAndOffsets.getB().length; ++i )
-			System.out.println( "  " + i + ": " + Arrays.toString( scalesAndOffsets.getB()[ i ] ) );
+				downsampleScalePyramidWithHalfPixelOffset(
+						sparkContext,
+						n5Supplier,
+						parsedArgs.getInputDatasetPath()
+					);
+		}
 	}
 
 	private static class Arguments implements Serializable
