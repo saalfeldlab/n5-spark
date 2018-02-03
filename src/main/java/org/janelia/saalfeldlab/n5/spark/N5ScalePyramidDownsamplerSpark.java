@@ -71,7 +71,7 @@ public class N5ScalePyramidDownsamplerSpark
 			for ( int d = 0; d < dim; ++d )
 				downsampledDimensions[ d ] = dimensions[ d ] / scaleFactors[ d ];
 
-			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 || Arrays.stream( downsampledDimensions ).max().getAsLong() < Arrays.stream( downsampledBlockSize ).max().getAsInt() )
+			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 )
 				break;
 
 			final String inputDatasetPath = scale == 1 ? datasetPath : Paths.get( rootOutputPath, "s" + ( scale - 1 ) ).toString();
