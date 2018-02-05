@@ -41,7 +41,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
-			final int[] downsamplingStepFactors ) throws IOException
+			final int[] downsamplingStepFactors,
+			final boolean[] dimensionsWithOffset ) throws IOException
 	{
 		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
 		return downsampleScalePyramidWithHalfPixelOffset(
@@ -49,7 +50,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 				n5Supplier,
 				datasetPath,
 				outputGroupPath,
-				downsamplingStepFactors
+				downsamplingStepFactors,
+				dimensionsWithOffset
 			);
 	}
 
@@ -72,7 +74,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
 			final String outputGroupPath,
-			final int[] downsamplingStepFactors ) throws IOException
+			final int[] downsamplingStepFactors,
+			final boolean[] dimensionsWithOffset ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
@@ -110,7 +113,9 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		}
 
 		final long[] relativeOffset = new long[ dim ];
-		Arrays.fill( relativeOffset, 1 );
+		for ( int d = 0; d < dim; ++d )
+			if ( dimensionsWithOffset[ d ] )
+				relativeOffset[ d ] = 1;
 
 		final List< String > downsampledDatasets = new ArrayList<>();
 
@@ -162,6 +167,17 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	{
 		final Arguments parsedArgs = new Arguments( args );
 
+		final boolean[] dimensionsWithOffset = new boolean[ parsedArgs.getOffset().length ];
+		for ( int d = 0; d < dimensionsWithOffset.length; ++d )
+		{
+			if ( parsedArgs.getOffset()[ d ] == 0 )
+				dimensionsWithOffset[ d ] = false;
+			else if ( parsedArgs.getOffset()[ d ] == 1 )
+				dimensionsWithOffset[ d ] = true;
+			else
+				throw new IllegalArgumentException( "In this version offset can only be 0 or 1" );
+		}
+
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
 				.setAppName( "N5DownsamplingSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
@@ -176,7 +192,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
 						parsedArgs.getOutputGroupPath(),
-						parsedArgs.getDownsamplingFactors()
+						parsedArgs.getDownsamplingFactors(),
+						dimensionsWithOffset
 					);
 			}
 			else
@@ -185,7 +202,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
-						parsedArgs.getDownsamplingFactors()
+						parsedArgs.getDownsamplingFactors(),
+						dimensionsWithOffset
 					);
 			}
 		}
@@ -211,6 +229,10 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
+		@Option(name = "--offset", required = true,
+				usage = "Offset.")
+		private String offset;
+
 		public Arguments( final String... args ) throws IllegalArgumentException
 		{
 			final CmdLineParser parser = new CmdLineParser( this );
@@ -230,5 +252,6 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputGroupPath() { return outputGroupPath; }
 		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
+		public long[] getOffset() { return CmdUtils.parseLongArray( offset ); }
 	}
 }
