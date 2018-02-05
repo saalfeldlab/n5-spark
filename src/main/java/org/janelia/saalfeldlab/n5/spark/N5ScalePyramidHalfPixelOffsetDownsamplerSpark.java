@@ -84,33 +84,14 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 
 		final String intermediateOutputGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling" ).toString();
 
-		// generate power of two scale pyramid
-		for ( int scale = 1; ; ++scale )
-		{
-			final int[] scaleFactors = new int[ dim ];
-			for ( int d = 0; d < dim; ++d )
-				scaleFactors[ d ] = ( int ) Math.round( Math.pow( downsamplingStepFactors[ d ], scale ) );
-
-			final long[] downsampledDimensions = new long[ dim ];
-			for ( int d = 0; d < dim; ++d )
-				downsampledDimensions[ d ] = dimensions[ d ] / scaleFactors[ d ];
-
-			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 )
-				break;
-
-			final String inputDatasetPath = scale == 1 ? datasetPath : Paths.get( intermediateOutputGroupPath, "s" + ( scale - 1 ) ).toString();
-			final String outputDatasetPath = Paths.get( intermediateOutputGroupPath, "s" + scale ).toString();
-
-			N5DownsamplerSpark.downsample(
-					sparkContext,
-					n5Supplier,
-					inputDatasetPath,
-					outputDatasetPath,
-					downsamplingStepFactors
-				);
-
-			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleFactors );
-		}
+		// generate regular scale pyramid
+		N5ScalePyramidDownsamplerSpark.downsampleScalePyramid(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				intermediateOutputGroupPath,
+				downsamplingStepFactors
+			);
 
 		final long[] relativeOffset = new long[ dim ];
 		for ( int d = 0; d < dim; ++d )

@@ -92,9 +92,6 @@ public class N5DownsamplerSpark
 			final int[] downsamplingFactors,
 			final long[] offset ) throws IOException
 	{
-		if ( Arrays.stream( downsamplingFactors ).max().getAsInt() <= 1 )
-			throw new IllegalArgumentException( "Invalid downsampling factors: " + Arrays.toString( downsamplingFactors ) );
-
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );

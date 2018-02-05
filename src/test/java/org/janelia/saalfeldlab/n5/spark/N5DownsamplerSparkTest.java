@@ -61,7 +61,7 @@ public class N5DownsamplerSparkTest
 
 	private void cleanup( final N5Writer n5 ) throws IOException
 	{
-		n5.remove();
+		Assert.assertTrue( n5.remove() );
 	}
 
 	@Test
