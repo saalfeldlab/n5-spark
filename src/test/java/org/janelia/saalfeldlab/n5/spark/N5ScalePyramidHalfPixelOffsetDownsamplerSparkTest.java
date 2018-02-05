@@ -72,7 +72,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 		final List< String > scalePyramidDatasets = N5ScalePyramidHalfPixelOffsetDownsamplerSpark.downsampleScalePyramidWithHalfPixelOffset(
 				sparkContext,
 				n5Supplier,
-				datasetPath
+				datasetPath,
+				new int[] { 2, 2, 2 }
 			);
 
 		Assert.assertEquals( 2, scalePyramidDatasets.size() );

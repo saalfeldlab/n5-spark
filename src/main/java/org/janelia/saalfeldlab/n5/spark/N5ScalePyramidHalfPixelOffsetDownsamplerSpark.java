@@ -24,7 +24,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	public static final String OFFSETS_ATTRIBUTE_KEY = "offsets";
 
 	/**
-	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the factor of 2 in all dimensions using half-pixel offset.
+	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors with half-pixel offset.
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
 	 * Reuses the block size of the input dataset. Stores the output datasets in the same group as the input datset.
 	 *
@@ -40,19 +40,21 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	public static List< String > downsampleScalePyramidWithHalfPixelOffset(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
-			final String datasetPath ) throws IOException
+			final String datasetPath,
+			final int[] downsamplingStepFactors ) throws IOException
 	{
 		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
 		return downsampleScalePyramidWithHalfPixelOffset(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
-				outputGroupPath
+				outputGroupPath,
+				downsamplingStepFactors
 			);
 	}
 
 	/**
-	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the factor of 2 in all dimensions using half-pixel offset.
+	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors with half-pixel offset.
 	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
 	 * Reuses the block size of the input dataset. Stores the output datasets under the given output group.
 	 *
@@ -69,15 +71,13 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
-			final String outputGroupPath ) throws IOException
+			final String outputGroupPath,
+			final int[] downsamplingStepFactors ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
 		final long[] dimensions = fullScaleAttributes.getDimensions();
 		final int dim = dimensions.length;
-
-		final int[] relativeDownsamplingFactors = new int[ dim ];
-		Arrays.fill( relativeDownsamplingFactors, 2 );
 
 		final String intermediateOutputGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling" ).toString();
 
@@ -86,7 +86,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		{
 			final int[] scaleFactors = new int[ dim ];
 			for ( int d = 0; d < dim; ++d )
-				scaleFactors[ d ] = ( int ) Math.round( Math.pow( relativeDownsamplingFactors[ d ], scale ) );
+				scaleFactors[ d ] = ( int ) Math.round( Math.pow( downsamplingStepFactors[ d ], scale ) );
 
 			final long[] downsampledDimensions = new long[ dim ];
 			for ( int d = 0; d < dim; ++d )
@@ -103,7 +103,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 					n5Supplier,
 					inputDatasetPath,
 					outputDatasetPath,
-					relativeDownsamplingFactors
+					downsamplingStepFactors
 				);
 
 			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleFactors );
@@ -119,7 +119,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		{
 			final int[] scaleFactors = new int[ dim ];
 			for ( int d = 0; d < dim; ++d )
-				scaleFactors[ d ] = ( int ) Math.round( Math.pow( relativeDownsamplingFactors[ d ], scale ) );
+				scaleFactors[ d ] = ( int ) Math.round( Math.pow( downsamplingStepFactors[ d ], scale ) );
 
 			final long[] downsampledDimensions = new long[ dim ];
 			for ( int d = 0; d < dim; ++d )
@@ -139,13 +139,13 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 					n5Supplier,
 					inputDatasetPath,
 					outputDatasetPath,
-					relativeDownsamplingFactors,
+					downsamplingStepFactors,
 					relativeOffset
 				);
 
 			final long[] offset = new long[ dim ];
 			for ( int d = 0; d < dim; ++d )
-				offset[ d ] = Math.round( Math.pow( relativeDownsamplingFactors[ d ], scale - 1 ) );
+				offset[ d ] = Math.round( Math.pow( downsamplingStepFactors[ d ], scale - 1 ) );
 
 			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleFactors );
 			n5.setAttribute( outputDatasetPath, OFFSETS_ATTRIBUTE_KEY, offset );
@@ -175,7 +175,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
-						parsedArgs.getOutputGroupPath()
+						parsedArgs.getOutputGroupPath(),
+						parsedArgs.getDownsamplingFactors()
 					);
 			}
 			else
@@ -183,7 +184,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 				downsampleScalePyramidWithHalfPixelOffset(
 						sparkContext,
 						n5Supplier,
-						parsedArgs.getInputDatasetPath()
+						parsedArgs.getInputDatasetPath(),
+						parsedArgs.getDownsamplingFactors()
 					);
 			}
 		}
@@ -205,6 +207,10 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 				usage = "Path to a group within the N5 container to store the output datasets (e.g. data/group/scale-pyramid).")
 		private String outputGroupPath;
 
+		@Option(name = "-f", aliases = { "--factors" }, required = true,
+				usage = "Downsampling factors.")
+		private String downsamplingFactors;
+
 		public Arguments( final String... args ) throws IllegalArgumentException
 		{
 			final CmdLineParser parser = new CmdLineParser( this );
@@ -223,5 +229,6 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		public String getN5Path() { return n5Path; }
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputGroupPath() { return outputGroupPath; }
+		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
 	}
 }
