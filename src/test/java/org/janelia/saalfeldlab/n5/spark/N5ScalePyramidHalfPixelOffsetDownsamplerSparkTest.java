@@ -73,7 +73,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 				sparkContext,
 				n5Supplier,
 				datasetPath,
-				new int[] { 2, 2, 2 }
+				new int[] { 2, 2, 2 },
+				new boolean[] { true, true, true }
 			);
 
 		Assert.assertEquals( 2, scalePyramidDatasets.size() );
