@@ -46,32 +46,137 @@ If running locally, you can access the Spark job tracker at http://localhost:404
 
 ### N5 downsampling
 
-<details>
-<summary><b>Run on Janelia cluster</b></summary>
+There are several downsampling modes available:
 
-```bash
-spark-janelia/n5-downsample.py 
-<number of cluster nodes> 
--n <path to n5 root> 
--i <input dataset> 
-[-r <pixel resolution>]
-```
-</details>
+* <b>N-dimensional downsampling</b>: performs a single downsampling step with given factors.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset> 
+  -f <downsampling factors> 
+  [--offset]
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset> 
+  -f <downsampling factors> 
+  [--offset]
+  ```
+  </details>
+  
+* <b>N-dimensional label downsampling</b>: performs a single downsampling step with given factors. Instead of averaging the most frequent value in the block is used.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample-label.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset>
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample-label.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset>
+  ```
+  </details>
+  
+* <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample-scale-pyramid.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -f <downsampling factors> 
+  [-o <output group>]
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample-scale-pyramid.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -f <downsampling factors> 
+  [-o <output group>]
+  ```
+  </details>
+  
+* <b>N-dimensional scale pyramid with half-pixel offset</b>: generates a scale pyramid with given factors and half-pixel offset applied on every scale level.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample-scale-pyramid-half-pixel-offset.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -f <downsampling factors> 
+  --offset <which dimensions to apply offset to>
+  [-o <output group>]
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample-scale-pyramid-half-pixel-offset.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -f <downsampling factors> 
+  --offset <which dimensions to apply offset to>
+  [-o <output group>]
+  ```
+  </details>
+  
+* <b>3D isotropic scale pyramid</b>: generates a power-of-two scale pyramid adjusting Z factor to the closest to isotropic.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample-scale-pyramid-isotropic-3d.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -r <pixel resolution> 
+  [-o <output group>]
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample-scale-pyramid-isotropic-3d.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -r <pixel resolution> 
+  [-o <output group>]
+  ```
+  </details>
 
-<details>
-<summary><b>Run on local machine</b></summary>
-
-```bash
-spark-local/n5-downsample.py 
--n <path to n5 root> 
--i <input dataset> 
-[-r <pixel resolution>]
-```
-</details>
-
-The tool generates lower resolution datasets in the same group with the input dataset until the resulting volume fits into a single block. The naming scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
-By default the downsampling factors are powers of two (`[2,2,2],[4,4,4],[8,8,8],...`). If the optional pixel resolution parameter is passed (e.g. `-r 0.097,0.097,0.18`), the downsampling factors in Z are adjusted with respect to it to make lower resolutions as close to isotropic as possible.<br/>
-The block size of the input dataset is reused, or adjusted with respect to the pixel resolution if the optional parameter is supplied. The used downsampling factors are written into the attributes metadata of the lower resolution datasets.
+If the output group argument is omitted for scale pyramid exporters, the resulting datasets are stored in the same group with the input dataset. The naming scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
+The resulting datasets have the same block size as the given input dataset. Their respective downsampling factors are written into the attributes metadata of the lower resolution datasets.
 
 
 ### N5 to slice TIFF series converter
@@ -80,7 +185,7 @@ The block size of the input dataset is reused, or adjusted with respect to the p
 <summary><b>Run on Janelia cluster</b></summary>
 
 ```bash
-spark-janelia/n5-slice-tiff.py 
+./n5-slice-tiff.py 
 <number of cluster nodes> 
 -n <path to n5 root> 
 -i <input dataset> 
