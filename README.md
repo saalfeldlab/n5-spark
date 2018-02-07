@@ -69,7 +69,7 @@ spark-local/n5-downsample.py
 ```
 </details>
 
-The tool generates lower resolution datasets in the same group with the input dataset until the resulting volume fits into a single block. The namin scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
+The tool generates lower resolution datasets in the same group with the input dataset until the resulting volume fits into a single block. The naming scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
 By default the downsampling factors are powers of two (`[2,2,2],[4,4,4],[8,8,8],...`). If the optional pixel resolution parameter is passed (e.g. `-r 0.097,0.097,0.18`), the downsampling factors in Z are adjusted with respect to it to make lower resolutions as close to isotropic as possible.<br/>
 The block size of the input dataset is reused, or adjusted with respect to the pixel resolution if the optional parameter is supplied. The used downsampling factors are written into the attributes metadata of the lower resolution datasets.
 
@@ -86,6 +86,7 @@ spark-janelia/n5-slice-tiff.py
 -i <input dataset> 
 -o <output path> 
 [-c <tiff compression>]
+[-d <slice dimension>]
 ```
 </details>
 
@@ -98,11 +99,13 @@ spark-local/n5-slice-tiff.py
 -i <input dataset> 
 -o <output path> 
 [-c <tiff compression>]
+[-d <slice dimension>]
 ```
 </details>
 
 The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
-The following TIFF compression modes are supported: `-c lzw` and `-c none`.
+The following TIFF compression modes are supported: `-c lzw` (default) and `-c none`.<br/>
+The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to generate YZ, XZ, or XY slices respectively.
 
 
 ### N5 max intensity projection
