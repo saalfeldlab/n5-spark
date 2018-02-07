@@ -85,6 +85,7 @@ There are several downsampling modes available:
   -n <path to n5 root> 
   -i <input dataset> 
   -o <output dataset>
+  -f <downsampling factors> 
   ```
   </details>  
   <details> 
@@ -95,6 +96,7 @@ There are several downsampling modes available:
   -n <path to n5 root> 
   -i <input dataset> 
   -o <output dataset>
+  -f <downsampling factors> 
   ```
   </details>
   
