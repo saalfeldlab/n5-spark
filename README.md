@@ -12,7 +12,7 @@ Supported operations:
 Clone the repository with submodules:
 
 ```bash
-git clone --recursive https://github.com/saalfeldlab/stitching-spark.git 
+git clone --recursive https://github.com/saalfeldlab/n5-spark.git 
 ```
 
 If you have already cloned the repository, run this after cloning to fetch the submodules:
