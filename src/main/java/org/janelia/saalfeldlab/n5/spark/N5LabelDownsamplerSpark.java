@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -159,7 +158,6 @@ public class N5LabelDownsamplerSpark
 		final Cursor< T > out = Views.iterable( output ).localizingCursor();
 
 		final Map< Long, Integer > labelCount = new HashMap<>();
-		final TreeSet< Long > labelsWithMaxCount = new TreeSet<>();
 
 		while( out.hasNext() )
 		{
@@ -167,30 +165,28 @@ public class N5LabelDownsamplerSpark
 			for ( int d = 0; d < n; ++d )
 				block.setPosition( out.getLongPosition( d ) * factor[ d ], d );
 
-			// find counts for each label
+			// find count for each label
 			labelCount.clear();
 			for ( final T i : block.get() )
 				labelCount.put( i.getIntegerLong(), labelCount.getOrDefault( i.getIntegerLong(), 0 ) + 1 );
 
-			// find labels with maximum count
+			// find the most frequent label, or in case of multiple labels with the same frequency, the smallest label among them
 			int maxCount = Integer.MIN_VALUE;
-			labelsWithMaxCount.clear();
+			long labelWithMaxCount = Long.MIN_VALUE;
 			for ( final Entry< Long, Integer > entry : labelCount.entrySet() )
 			{
 				if ( maxCount < entry.getValue() )
 				{
 					maxCount = entry.getValue();
-					labelsWithMaxCount.clear();
-					labelsWithMaxCount.add( entry.getKey() );
+					labelWithMaxCount = entry.getKey();
 				}
-				else if ( maxCount == entry.getValue() )
+				else if ( maxCount == entry.getValue() && labelWithMaxCount > entry.getKey() )
 				{
-					labelsWithMaxCount.add( entry.getKey() );
+					labelWithMaxCount = entry.getKey();
 				}
 			}
 
-			// set to the most frequent label, or in case of tie, to the smallest label among them
-			o.setInteger( labelsWithMaxCount.first() );
+			o.setInteger( labelWithMaxCount );
 		}
 	}
 
