@@ -187,7 +187,7 @@ The resulting datasets have the same block size as the given input dataset. Thei
 <summary><b>Run on Janelia cluster</b></summary>
 
 ```bash
-./n5-slice-tiff.py 
+spark-janelia/n5-slice-tiff.py 
 <number of cluster nodes> 
 -n <path to n5 root> 
 -i <input dataset> 
