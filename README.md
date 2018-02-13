@@ -105,7 +105,7 @@ There are several downsampling modes available:
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-downsample-scale-pyramid.py 
+  spark-janelia/n5-scale-pyramid.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -117,7 +117,7 @@ There are several downsampling modes available:
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-downsample-scale-pyramid.py 
+  spark-local/n5-scale-pyramid.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -f <downsampling factors> 
@@ -130,7 +130,7 @@ There are several downsampling modes available:
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-downsample-scale-pyramid-half-pixel-offset.py 
+  spark-janelia/n5-scale-pyramid-half-pixel-offset.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -143,7 +143,7 @@ There are several downsampling modes available:
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-downsample-scale-pyramid-half-pixel-offset.py 
+  spark-local/n5-scale-pyramid-half-pixel-offset.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -f <downsampling factors> 
@@ -157,7 +157,7 @@ There are several downsampling modes available:
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-downsample-scale-pyramid-isotropic-3d.py 
+  spark-janelia/n5-scale-pyramid-isotropic-3d.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -169,7 +169,7 @@ There are several downsampling modes available:
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-downsample-scale-pyramid-isotropic-3d.py 
+  spark-local/n5-scale-pyramid-isotropic-3d.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -r <pixel resolution> 
