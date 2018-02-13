@@ -75,7 +75,7 @@ Generates a single downsampled export:
   ```
   </details>
   
-* <b>N-dimensional label downsampling</b>: performs a single downsampling step with given factors. Instead of averaging the most frequent value in the block is used.
+* <b>N-dimensional label downsampling</b>: performs a single downsampling step with given factors. The most frequent value is used instead of averaging. In case of multiple values with the same frequency, the smallest value among them is selected.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
