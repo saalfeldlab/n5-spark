@@ -46,7 +46,7 @@ If running locally, you can access the Spark job tracker at http://localhost:404
 
 ### N5 downsampling
 
-There are several downsampling modes available:
+Generates a single downsampled export:
 
 * <b>N-dimensional downsampling</b>: performs a single downsampling step with given factors.
   <details>
@@ -99,7 +99,9 @@ There are several downsampling modes available:
   -f <downsampling factors> 
   ```
   </details>
-  
+
+Generates a scale pyramid:
+
 * <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
