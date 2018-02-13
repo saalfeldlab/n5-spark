@@ -152,7 +152,7 @@ There are several downsampling modes available:
   ```
   </details>
   
-* <b>3D isotropic scale pyramid</b>: generates a power-of-two scale pyramid adjusting Z factor to the closest to isotropic.
+* <b>3D isotropic scale pyramid</b>: generates a power-of-two scale pyramid adjusting Z downsampling factors to the closest to isotropic with respect to X/Y. Z block sizes are adjusted as well to be the closest to isotropic multiple of the original Z block size.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
