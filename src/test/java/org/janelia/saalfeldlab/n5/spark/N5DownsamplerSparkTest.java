@@ -95,6 +95,44 @@ public class N5DownsamplerSparkTest
 	}
 
 	@Test
+	public void testDownsamplingWithDifferentBlockSize() throws IOException
+	{
+		final N5Writer n5 = n5Supplier.get();
+		createDataset( n5, new long[] { 6, 6 }, new int[] { 2, 2 } );
+
+		N5DownsamplerSpark.downsample(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				downsampledDatasetPath,
+				new int[] { 2, 2 },
+				new int[] { 3, 1 }
+			);
+
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
+		Assert.assertArrayEquals( new long[] { 3, 3 }, downsampledAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 3, 1 }, downsampledAttributes.getBlockSize() );
+
+		Assert.assertArrayEquals(
+				new int[] {
+						( int ) Util.round( ( 1 + 2 + 7 + 8 ) / 4. ),
+						( int ) Util.round( ( 3 + 4 + 9 + 10 ) / 4. ),
+						( int ) Util.round( ( 5 + 6 + 11 + 12 ) / 4. ),
+						( int ) Util.round( ( 13 + 14 + 19 + 20 ) / 4. ),
+						( int ) Util.round( ( 15 + 16 + 21 + 22 ) / 4. ),
+						( int ) Util.round( ( 17 + 18 + 23 + 24 ) / 4. ),
+						( int ) Util.round( ( 25 + 26 + 31 + 32 ) / 4. ),
+						( int ) Util.round( ( 27 + 28 + 33 + 34 ) / 4. ),
+						( int ) Util.round( ( 29 + 30 + 35 + 36 ) / 4. ),
+					},
+				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
+			);
+
+
+		cleanup( n5 );
+	}
+
+	@Test
 	public void testDownsamplingNDRandomized() throws IOException
 	{
 		final Random rnd = new Random();

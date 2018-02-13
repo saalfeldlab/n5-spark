@@ -42,7 +42,7 @@ public class N5DownsamplerSpark
 
 	/**
 	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
-	 * The output dataset will be created within the same N5 container.
+	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -58,19 +58,50 @@ public class N5DownsamplerSpark
 			final String outputDatasetPath,
 			final int[] downsamplingFactors ) throws IOException
 	{
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				null
+			);
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize ) throws IOException
+	{
 		downsampleWithOffset(
 				sparkContext,
 				n5Supplier,
 				inputDatasetPath,
 				outputDatasetPath,
 				downsamplingFactors,
+				blockSize,
 				new long[ downsamplingFactors.length ]
 			);
 	}
 
 	/**
 	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
-	 * and the given offset. The output dataset will be created within the same N5 container.
+	 * and the given offset. The output dataset will be created within the same N5 container with the same block size as the input dataset.
 	 *
 	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
 	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
@@ -92,6 +123,43 @@ public class N5DownsamplerSpark
 			final int[] downsamplingFactors,
 			final long[] offset ) throws IOException
 	{
+		downsampleWithOffset(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				null,
+				offset
+			);
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
+	 * and the given offset. The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
+	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
+	 * When downsampling without the offset in the same example, the result will be [(0,1,2,3),(4,5,6,7)].
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @param offset
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsampleWithOffset(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final long[] offset ) throws IOException
+	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
@@ -111,7 +179,7 @@ public class N5DownsamplerSpark
 		if ( Arrays.stream( outputDimensions ).min().getAsLong() < 1 )
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
 
-		final int[] outputBlockSize = inputAttributes.getBlockSize().clone();
+		final int[] outputBlockSize = blockSize != null ? blockSize : inputAttributes.getBlockSize();
 		n5.createDataset(
 				outputDatasetPath,
 				outputDimensions,
@@ -243,6 +311,7 @@ public class N5DownsamplerSpark
 						parsedArgs.getInputDatasetPath(),
 						parsedArgs.getOutputDatasetPath(),
 						parsedArgs.getDownsamplingFactors(),
+						parsedArgs.getBlockSize(),
 						parsedArgs.getOffset()
 					);
 			}
@@ -253,7 +322,8 @@ public class N5DownsamplerSpark
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
 						parsedArgs.getOutputDatasetPath(),
-						parsedArgs.getDownsamplingFactors()
+						parsedArgs.getDownsamplingFactors(),
+						parsedArgs.getBlockSize()
 					);
 			}
 		}
@@ -280,7 +350,11 @@ public class N5DownsamplerSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
-		@Option(name = "--offset", required = false,
+		@Option(name = "-b", aliases = { "--blockSize" }, required = false,
+				usage = "Block size.")
+		private String blockSize;
+
+		@Option(name = "-s", aliases = { "--offset" }, required = false,
 				usage = "Offset.")
 		private String offset;
 
@@ -303,6 +377,7 @@ public class N5DownsamplerSpark
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
+		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
 		public long[] getOffset() { return CmdUtils.parseLongArray( offset ); }
 	}
 }
