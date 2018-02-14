@@ -230,7 +230,7 @@ public class N5DownsamplerSpark
 			else
 				downsampleIntervalWithOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
 
-			N5Utils.saveBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
+			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, Util.getTypeFromInterval( targetBlock ).createVariable() );
 		} );
 	}
 
