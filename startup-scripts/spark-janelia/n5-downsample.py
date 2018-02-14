@@ -20,4 +20,4 @@ os.environ['TERMINATE'] = '1'
 
 nodes = int(sys.argv[1])
 
-subprocess.call([flintstone_path, str(nodes), bin_path, 'org.janelia.saalfeldlab.n5.spark.N5DownsamplerSpark'] + sys.argv[2:])
+subprocess.call([flintstone_path, str(nodes), bin_path, 'org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark'] + sys.argv[2:])
