@@ -18,9 +18,16 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import bdv.export.Downsample;
+import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.neighborhood.Neighborhood;
+import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodFactory;
+import net.imglib2.algorithm.neighborhood.RectangleNeighborhoodUnsafe;
+import net.imglib2.algorithm.neighborhood.RectangleShape;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.type.NativeType;
@@ -29,41 +36,52 @@ import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
-public class N5DownsamplerSpark
+public class N5OffsetDownsamplerSpark
 {
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
-	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
+	 * and the given offset. The output dataset will be created within the same N5 container with the same block size as the input dataset.
+	 *
+	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
+	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
+	 * When downsampling without the offset in the same example, the result will be [(0,1,2,3),(4,5,6,7)].
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
 	 * @param inputDatasetPath
 	 * @param outputDatasetPath
 	 * @param downsamplingFactors
+	 * @param offset
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void downsample(
+	public static < T extends NativeType< T > & RealType< T > > void downsampleWithOffset(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String inputDatasetPath,
 			final String outputDatasetPath,
-			final int[] downsamplingFactors ) throws IOException
+			final int[] downsamplingFactors,
+			final long[] offset ) throws IOException
 	{
-		downsample(
+		downsampleWithOffset(
 				sparkContext,
 				n5Supplier,
 				inputDatasetPath,
 				outputDatasetPath,
 				downsamplingFactors,
-				null
+				null,
+				offset
 			);
 	}
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
-	 * The output dataset will be created within the same N5 container with given block size.
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
+	 * and the given offset. The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
+	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
+	 * When downsampling without the offset in the same example, the result will be [(0,1,2,3),(4,5,6,7)].
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -71,15 +89,17 @@ public class N5DownsamplerSpark
 	 * @param outputDatasetPath
 	 * @param downsamplingFactors
 	 * @param blockSize
+	 * @param offset
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void downsample(
+	public static < T extends NativeType< T > & RealType< T > > void downsampleWithOffset(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String inputDatasetPath,
 			final String outputDatasetPath,
 			final int[] downsamplingFactors,
-			final int[] blockSize ) throws IOException
+			final int[] blockSize,
+			final long[] offset ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
@@ -90,12 +110,12 @@ public class N5DownsamplerSpark
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final int dim = inputAttributes.getNumDimensions();
 
-		if ( dim != downsamplingFactors.length )
+		if ( dim != downsamplingFactors.length || dim != offset.length )
 			throw new IllegalArgumentException( "Downsampling parameters do not match data dimensionality." );
 
 		final long[] outputDimensions = new long[ dim ];
 		for ( int d = 0; d < dim; ++d )
-			outputDimensions[ d ] = inputAttributes.getDimensions()[ d ] / downsamplingFactors[ d ];
+			outputDimensions[ d ] = ( inputAttributes.getDimensions()[ d ] + offset[ d ] ) / downsamplingFactors[ d ];
 
 		if ( Arrays.stream( outputDimensions ).min().getAsLong() < 1 )
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
@@ -132,15 +152,97 @@ public class N5DownsamplerSpark
 			final Interval targetInterval = new FinalInterval( targetMin, targetMax );
 
 			final N5Writer n5Local = n5Supplier.get();
-
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
-			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( source, sourceInterval );
+			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
+			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedSource, sourceInterval );
 
+			final long[] definedSourceMin = new long[ dim ], definedSourceMax = new long[ dim ];
+			for ( int d = 0; d < dim; ++d )
+			{
+				definedSourceMin[ d ] = Math.max( translatedSource.min( d ) - sourceMin[ d ], 0 );
+				definedSourceMax[ d ] = translatedSource.dimension( d ) - 1 - sourceMin[ d ] + offset[ d ];
+			}
+			final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
+
+			/* test if empty */
+			final T defaultValue = Util.getTypeFromInterval( sourceBlock ).createVariable();
+			boolean isEmpty = true;
+			for ( final T t : Views.iterable( Views.interval( sourceBlock, Intervals.intersect( definedSourceInterval, sourceBlock ) ) ) )
+			{
+				isEmpty &= defaultValue.valueEquals( t );
+				if ( !isEmpty ) break;
+			}
+			if ( isEmpty )
+				return;
+
+			/* do if not empty */
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
-			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
+
+			if ( Intervals.contains( definedSourceInterval, sourceBlock ) )
+				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
+			else
+				downsampleIntervalOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, Util.getTypeFromInterval( targetBlock ).createVariable() );
 		} );
+	}
+
+	/**
+	 * Based on {@link bdv.export.Downsample}.
+	 */
+	private static < T extends RealType< T > > void downsampleIntervalOutOfBoundsCheck(
+			final RandomAccessible< T > input,
+			final RandomAccessibleInterval< T > output,
+			final int[] factor,
+			final Interval definedInputInterval )
+	{
+		assert input.numDimensions() == output.numDimensions();
+		assert input.numDimensions() == factor.length;
+
+		final int n = input.numDimensions();
+		final RectangleNeighborhoodFactory< T > f = RectangleNeighborhoodUnsafe.< T >factory();
+		final long[] dim = new long[ n ];
+		for ( int d = 0; d < n; ++d )
+			dim[ d ] = factor[ d ];
+		final Interval spanInterval = new FinalInterval( dim );
+
+		final long[] minRequiredInput = new long[ n ];
+		final long[] maxRequiredInput = new long[ n ];
+		output.min( minRequiredInput );
+		output.max( maxRequiredInput );
+		for ( int d = 0; d < n; ++d )
+		{
+			minRequiredInput[ d ] *= factor[ d ];
+			maxRequiredInput[ d ] *= factor[ d ];
+			maxRequiredInput[ d ] += factor[ d ] - 1;
+		}
+		final RandomAccessibleInterval< T > requiredInput = Views.interval( input, new FinalInterval( minRequiredInput, maxRequiredInput ) );
+
+		final RectangleShape.NeighborhoodsAccessible< T > neighborhoods = new RectangleShape.NeighborhoodsAccessible<>( requiredInput, spanInterval, f );
+		final RandomAccess< Neighborhood< T > > block = neighborhoods.randomAccess();
+
+		final Cursor< T > out = Views.iterable( output ).localizingCursor();
+		while( out.hasNext() )
+		{
+			final T o = out.next();
+			for ( int d = 0; d < n; ++d )
+				block.setPosition( out.getLongPosition( d ) * factor[ d ], d );
+			final Cursor< T > neighborhoodCursor = block.get().localizingCursor();
+
+			double sum = 0;
+			long count = 0;
+			while ( neighborhoodCursor.hasNext() )
+			{
+				final T i = neighborhoodCursor.next();
+				if ( Intervals.contains( definedInputInterval, neighborhoodCursor ) )
+				{
+					++count;
+					sum += i.getRealDouble();
+				}
+			}
+			final double scale = 1.0 / count;
+			o.setReal( sum * scale );
+		}
 	}
 
 
@@ -154,13 +256,14 @@ public class N5DownsamplerSpark
 			) )
 		{
 			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
-			downsample(
+			downsampleWithOffset(
 					sparkContext,
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getOutputDatasetPath(),
 					parsedArgs.getDownsamplingFactors(),
-					parsedArgs.getBlockSize()
+					parsedArgs.getBlockSize(),
+					parsedArgs.getOffset()
 				);
 		}
 		System.out.println( "Done" );
@@ -186,6 +289,10 @@ public class N5DownsamplerSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
+		@Option(name = "-s", aliases = { "--offset" }, required = true,
+				usage = "Offset.")
+		private String offset;
+
 		@Option(name = "-b", aliases = { "--blockSize" }, required = false,
 				usage = "Block size for the output dataset (by default same as for input dataset).")
 		private String blockSize;
@@ -210,5 +317,6 @@ public class N5DownsamplerSpark
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
 		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
+		public long[] getOffset() { return CmdUtils.parseLongArray( offset ); }
 	}
 }
