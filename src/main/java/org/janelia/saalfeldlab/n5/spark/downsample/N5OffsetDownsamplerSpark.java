@@ -137,10 +137,12 @@ public class N5OffsetDownsamplerSpark
 
 		sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( blockIndex ->
 		{
+			// downsampled block index to grid position
 			final CellGrid cellGrid = new CellGrid( outputDimensions, outputBlockSize );
 			final long[] blockGridPosition = new long[ cellGrid.numDimensions() ];
 			cellGrid.getCellGridPositionFlat( blockIndex, blockGridPosition );
 
+			// find corresponding source interval
 			final long[] sourceMin = new long[ dim ], sourceMax = new long[ dim ], targetMin = new long[ dim ], targetMax = new long[ dim ];
 			final int[] cellDimensions = new int[ dim ];
 			cellGrid.getCellDimensions( blockGridPosition, targetMin, cellDimensions );
@@ -155,21 +157,25 @@ public class N5OffsetDownsamplerSpark
 
 			final N5Writer n5Local = n5Supplier.get();
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
+
+			// apply offset to source to align it with respect to the target block
 			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
 			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedSource, sourceInterval );
 
-			final long[] definedSourceMin = new long[ dim ], definedSourceMax = new long[ dim ];
+			// now that the source block is aligned, find the interval where it is defined within the target block
+			final long[] definedSourceBlockMin = new long[ dim ], definedSourceBlockMax = new long[ dim ];
 			for ( int d = 0; d < dim; ++d )
 			{
-				definedSourceMin[ d ] = Math.max( translatedSource.min( d ) - sourceMin[ d ], 0 );
-				definedSourceMax[ d ] = translatedSource.dimension( d ) - 1 - sourceMin[ d ] + offset[ d ];
+				definedSourceBlockMin[ d ] = Math.max( translatedSource.min( d ) - sourceMin[ d ], 0 );
+				definedSourceBlockMax[ d ] = Math.min( translatedSource.max( d ), sourceMax[ d ] ) - sourceMin[ d ];
 			}
-			final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
+			final Interval definedSourceBlockInterval = new FinalInterval( definedSourceBlockMin, definedSourceBlockMax );
+			final RandomAccessibleInterval< T > definedSourceBlock = Views.interval( sourceBlock, definedSourceBlockInterval );
 
 			/* test if empty */
 			final T defaultValue = Util.getTypeFromInterval( source ).createVariable();
 			boolean isEmpty = true;
-			for ( final T t : Views.iterable( Views.interval( sourceBlock, Intervals.intersect( definedSourceInterval, sourceBlock ) ) ) )
+			for ( final T t : Views.iterable( definedSourceBlock ) )
 			{
 				isEmpty &= defaultValue.valueEquals( t );
 				if ( !isEmpty ) break;
@@ -180,10 +186,10 @@ public class N5OffsetDownsamplerSpark
 			/* do if not empty */
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
 
-			if ( Intervals.contains( definedSourceInterval, sourceBlock ) )
+			if ( Intervals.equalDimensions( definedSourceBlockInterval, sourceInterval ) )
 				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 			else
-				downsampleIntervalOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
+				downsampleIntervalOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceBlockInterval );
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
