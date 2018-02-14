@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -12,13 +12,16 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.spark.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import com.esotericsoftware.kryo.Kryo;
 
-public class N5ScalePyramidDownsamplerSpark
+public class N5ScalePyramidSpark
 {
 	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
 

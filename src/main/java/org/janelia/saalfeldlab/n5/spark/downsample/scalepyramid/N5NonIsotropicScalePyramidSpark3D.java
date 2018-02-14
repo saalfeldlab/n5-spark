@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -12,6 +12,10 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.spark.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.N5RemoveSpark;
+import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -20,7 +24,7 @@ import com.esotericsoftware.kryo.Kryo;
 
 import net.imglib2.util.Util;
 
-public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
+public class N5NonIsotropicScalePyramidSpark3D
 {
 	public static class IsotropicScalingParameters
 	{
@@ -85,14 +89,14 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public static List< String > downsamplePowerOfTwoScalePyramidIsotropic3D(
+	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
 			final double[] pixelResolution ) throws IOException
 	{
 		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
-		return downsamplePowerOfTwoScalePyramidIsotropic3D(
+		return downsampleNonIsotropicScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -122,7 +126,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 	 *
 	 * @return downsampling factors for all scales including the input (full scale)
 	 */
-	public static List< String > downsamplePowerOfTwoScalePyramidIsotropic3D(
+	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
@@ -130,18 +134,10 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 			final double[] pixelResolution ) throws IOException
 	{
 		if ( !Util.isApproxEqual( pixelResolution[ 0 ], pixelResolution[ 1 ], 1e-10 ) )
-			throw new IllegalArgumentException( "Pixel resolution is different in X / Y" );
+			throw new IllegalArgumentException( "Pixel resolution is different in X/Y" );
 
 		if ( Util.isApproxEqual( IsotropicScalingEstimator.getPixelResolutionZtoXY( pixelResolution ), 1.0, 1e-10 ) )
-		{
-			return N5ScalePyramidDownsamplerSpark.downsampleScalePyramid(
-					sparkContext,
-					n5Supplier,
-					datasetPath,
-					outputGroupPath,
-					new int[] { 2, 2, 2 }
-				);
-		}
+			throw new IllegalArgumentException( "Pixel resolution is the same in X/Y/Z, use regular N5ScalePyramidSpark" );
 
 		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
@@ -150,7 +146,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 
 		// downsample in XY
 		final String xyGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-xy" ).toString();
-		N5ScalePyramidDownsamplerSpark.downsampleScalePyramid(
+		N5ScalePyramidSpark.downsampleScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -205,7 +201,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 
 			if ( parsedArgs.getOutputGroupPath() != null )
 			{
-				downsamplePowerOfTwoScalePyramidIsotropic3D(
+				downsampleNonIsotropicScalePyramid(
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
@@ -215,7 +211,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D
 			}
 			else
 			{
-				downsamplePowerOfTwoScalePyramidIsotropic3D(
+				downsampleNonIsotropicScalePyramid(
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),

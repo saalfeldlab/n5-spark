@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,8 +13,10 @@ import org.janelia.saalfeldlab.n5.GzipCompression;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
-import org.janelia.saalfeldlab.n5.spark.N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D.IsotropicScalingEstimator;
-import org.janelia.saalfeldlab.n5.spark.N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D.IsotropicScalingParameters;
+import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.IsotropicScalingEstimator;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.IsotropicScalingParameters;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -28,7 +30,7 @@ import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
-public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3DTest
+public class N5NonIsotropicScalePyramidSpark3DTest
 {
 	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
 	static private final String datasetPath = "data";
@@ -45,7 +47,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3DTest
 
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local[*]" )
-				.setAppName( "N5DownsamplingTest" )
+				.setAppName( "N5NonIsotropicScalePyramid3DTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
 	}
@@ -193,7 +195,7 @@ public class N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3DTest
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 2, 2, 1 } );
 
-		final List< String > downsampledDatasets = N5PowerOfTwoScalePyramidIsotropicDownsamplerSpark3D.downsamplePowerOfTwoScalePyramidIsotropic3D(
+		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark3D.downsampleNonIsotropicScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,

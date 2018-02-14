@@ -1,8 +1,8 @@
 package org.janelia.saalfeldlab.n5.spark;
 
-class CmdUtils
+public class CmdUtils
 {
-	static double[] parseDoubleArray( final String str )
+	public static double[] parseDoubleArray( final String str )
 	{
 		if ( str == null )
 			return null;
@@ -14,7 +14,7 @@ class CmdUtils
 		return values;
 	}
 
-	static int[] parseIntArray( final String str )
+	public static int[] parseIntArray( final String str )
 	{
 		if ( str == null )
 			return null;
@@ -26,7 +26,7 @@ class CmdUtils
 		return values;
 	}
 
-	static long[] parseLongArray( final String str )
+	public static long[] parseLongArray( final String str )
 	{
 		if ( str == null )
 			return null;

@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -12,13 +12,17 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.spark.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.N5RemoveSpark;
+import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.N5OffsetDownsamplerSpark;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import com.esotericsoftware.kryo.Kryo;
 
-public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
+public class N5OffsetScalePyramidSpark
 {
 	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
 	public static final String OFFSETS_ATTRIBUTE_KEY = "offsets";
@@ -37,7 +41,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	 *
 	 * @return downsampled dataset paths within the same N5 container
 	 */
-	public static List< String > downsampleScalePyramidWithHalfPixelOffset(
+	public static List< String > downsampleOffsetScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
@@ -45,7 +49,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 			final boolean[] dimensionsWithOffset ) throws IOException
 	{
 		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
-		return downsampleScalePyramidWithHalfPixelOffset(
+		return downsampleOffsetScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -69,7 +73,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 	 *
 	 * @return downsampled dataset paths within the same N5 container
 	 */
-	public static List< String > downsampleScalePyramidWithHalfPixelOffset(
+	public static List< String > downsampleOffsetScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
 			final String datasetPath,
@@ -85,7 +89,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 		final String intermediateOutputGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling" ).toString();
 
 		// generate regular scale pyramid
-		N5ScalePyramidDownsamplerSpark.downsampleScalePyramid(
+		N5ScalePyramidSpark.downsampleScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -120,7 +124,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 
 			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
 
-			N5DownsamplerSpark.downsampleWithOffset(
+			N5OffsetDownsamplerSpark.downsampleWithOffset(
 					sparkContext,
 					n5Supplier,
 					inputDatasetPath,
@@ -168,7 +172,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 
 			if ( parsedArgs.getOutputGroupPath() != null )
 			{
-				downsampleScalePyramidWithHalfPixelOffset(
+				downsampleOffsetScalePyramid(
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),
@@ -179,7 +183,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSpark
 			}
 			else
 			{
-				downsampleScalePyramidWithHalfPixelOffset(
+				downsampleOffsetScalePyramid(
 						sparkContext,
 						n5Supplier,
 						parsedArgs.getInputDatasetPath(),

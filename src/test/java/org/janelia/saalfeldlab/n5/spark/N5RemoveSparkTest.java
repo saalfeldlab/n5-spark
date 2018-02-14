@@ -36,7 +36,7 @@ public class N5RemoveSparkTest
 
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local[*]" )
-				.setAppName( "N5DownsamplingTest" )
+				.setAppName( "N5RemoveTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
 	}

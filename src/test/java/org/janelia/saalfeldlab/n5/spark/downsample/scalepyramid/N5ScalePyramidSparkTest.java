@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,6 +13,8 @@ import org.janelia.saalfeldlab.n5.GzipCompression;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5ScalePyramidSpark;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -26,7 +28,7 @@ import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
-public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
+public class N5ScalePyramidSparkTest
 {
 	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
 	static private final String datasetPath = "data";
@@ -43,7 +45,7 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local[*]" )
-				.setAppName( "N5DownsamplingTest" )
+				.setAppName( "N5ScalePyramidTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
 	}
@@ -69,24 +71,16 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 1, 1, 1 } );
 
-		final List< String > scalePyramidDatasets = N5ScalePyramidHalfPixelOffsetDownsamplerSpark.downsampleScalePyramidWithHalfPixelOffset(
+		final List< String > downsampledDatasets = N5ScalePyramidSpark.downsampleScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
-				new int[] { 2, 2, 2 },
-				new boolean[] { true, true, true }
+				new int[] { 2, 2, 2 }
 			);
 
-		Assert.assertEquals( 2, scalePyramidDatasets.size() );
-
-		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, n5.getAttribute( scalePyramidDatasets.get( 0 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
-		Assert.assertArrayEquals( new int[] { 4, 4, 4 }, n5.getAttribute( scalePyramidDatasets.get( 1 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
-
-		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, n5.getAttribute( scalePyramidDatasets.get( 0 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.OFFSETS_ATTRIBUTE_KEY, long[].class ) );
-		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, n5.getAttribute( scalePyramidDatasets.get( 1 ), N5ScalePyramidHalfPixelOffsetDownsamplerSpark.OFFSETS_ATTRIBUTE_KEY, long[].class ) );
-
-		final String downsampledIntermediateDatasetPath = Paths.get( scalePyramidDatasets.get( 0 ) ).toString();
-		final String downsampledLastDatasetPath = Paths.get( scalePyramidDatasets.get( 1 ) ).toString();
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
+		Assert.assertArrayEquals( new String[] { downsampledIntermediateDatasetPath, downsampledLastDatasetPath }, downsampledDatasets.toArray( new String[ 0 ] ) );
 
 		Assert.assertTrue(
 				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
@@ -98,7 +92,8 @@ public class N5ScalePyramidHalfPixelOffsetDownsamplerSparkTest
 		Assert.assertArrayEquals( new long[] { 1, 1, 1 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, downsampledAttributes.getBlockSize() );
 
-		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( 1 + 2 + 5 + 6 + 17 + 18 + 21 + 22 ) / 8. ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) ) );
+		final long numElements = Intervals.numElements( new long[] { 4, 4, 4 } );
+		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) ) );
 
 		cleanup( n5 );
 	}
