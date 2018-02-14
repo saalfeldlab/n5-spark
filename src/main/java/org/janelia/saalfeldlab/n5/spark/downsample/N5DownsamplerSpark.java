@@ -138,10 +138,22 @@ public class N5DownsamplerSpark
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
 			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( source, sourceInterval );
 
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
+			/* test if empty */
+			final T defaultValue = Util.getTypeFromInterval( sourceBlock ).createVariable();
+			boolean isEmpty = true;
+			for ( final T t : Views.iterable( sourceBlock ) )
+			{
+				isEmpty &= defaultValue.valueEquals( t );
+				if ( !isEmpty ) break;
+			}
+			if ( isEmpty )
+				return;
+
+			/* do if not empty */
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
 			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 
-			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, Util.getTypeFromInterval( targetBlock ).createVariable() );
+			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
 

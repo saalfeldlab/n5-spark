@@ -167,7 +167,7 @@ public class N5OffsetDownsamplerSpark
 			final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
 
 			/* test if empty */
-			final T defaultValue = Util.getTypeFromInterval( sourceBlock ).createVariable();
+			final T defaultValue = Util.getTypeFromInterval( source ).createVariable();
 			boolean isEmpty = true;
 			for ( final T t : Views.iterable( Views.interval( sourceBlock, Intervals.intersect( definedSourceInterval, sourceBlock ) ) ) )
 			{
@@ -178,14 +178,14 @@ public class N5OffsetDownsamplerSpark
 				return;
 
 			/* do if not empty */
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
 
 			if ( Intervals.contains( definedSourceInterval, sourceBlock ) )
 				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 			else
 				downsampleIntervalOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceInterval );
 
-			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, Util.getTypeFromInterval( targetBlock ).createVariable() );
+			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
 

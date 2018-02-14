@@ -117,10 +117,23 @@ public class N5LabelDownsamplerSpark
 			final N5Writer n5Local = n5Supplier.get();
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
 			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( source, sourceInterval );
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
 
+			/* test if empty */
+			final T defaultValue = Util.getTypeFromInterval( sourceBlock ).createVariable();
+			boolean isEmpty = true;
+			for ( final T t : Views.iterable( sourceBlock ) )
+			{
+				isEmpty &= defaultValue.valueEquals( t );
+				if ( !isEmpty ) break;
+			}
+			if ( isEmpty )
+				return;
+
+			/* do if not empty */
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
 			downsampleLabel( sourceBlock, targetBlock, downsamplingFactors );
-			N5Utils.saveBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
+
+			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
 
