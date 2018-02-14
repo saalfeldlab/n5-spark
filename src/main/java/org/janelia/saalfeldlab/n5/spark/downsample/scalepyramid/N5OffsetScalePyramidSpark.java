@@ -164,7 +164,7 @@ public class N5OffsetScalePyramidSpark
 		}
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
-				.setAppName( "N5DownsamplingSpark" )
+				.setAppName( "N5OffsetScalePyramidSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{

@@ -193,7 +193,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 		final Arguments parsedArgs = new Arguments( args );
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
-				.setAppName( "N5DownsamplingSpark" )
+				.setAppName( "N5NonIsotropicScalePyramidSpark3D" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{

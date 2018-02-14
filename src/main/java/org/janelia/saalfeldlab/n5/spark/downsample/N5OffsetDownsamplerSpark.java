@@ -253,7 +253,7 @@ public class N5OffsetDownsamplerSpark
 		final Arguments parsedArgs = new Arguments( args );
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
-				.setAppName( "N5DownsamplerSpark" )
+				.setAppName( "N5OffsetDownsamplerSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
