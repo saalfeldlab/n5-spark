@@ -212,8 +212,6 @@ public class N5DownsamplerSpark
 
 			final N5Writer n5Local = n5Supplier.get();
 			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
-
 			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
 			final RandomAccessibleInterval< T > sourceBlock = Views.offsetInterval( translatedSource, sourceInterval );
 
@@ -224,6 +222,20 @@ public class N5DownsamplerSpark
 				definedSourceMax[ d ] = translatedSource.dimension( d ) - 1 - sourceMin[ d ] + offset[ d ];
 			}
 			final Interval definedSourceInterval = new FinalInterval( definedSourceMin, definedSourceMax );
+
+			/* test if empty */
+			final T defaultValue = Util.getTypeFromInterval( sourceBlock ).createVariable();
+			boolean isEmpty = true;
+			for ( final T t : Views.iterable( Views.interval( sourceBlock, Intervals.intersect( definedSourceInterval, sourceBlock ) ) ) )
+			{
+				isEmpty &= defaultValue.valueEquals( t );
+				if ( !isEmpty ) break;
+			}
+			if ( isEmpty )
+				return;
+
+			/* do if not empty */
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, Util.getTypeFromInterval( source ) );
 
 			if ( Intervals.contains( definedSourceInterval, sourceBlock ) )
 				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
