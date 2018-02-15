@@ -214,7 +214,7 @@ public class N5OffsetScalePyramidSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
-		@Option(name = "--offset", required = true,
+		@Option(name = "-s", aliases = { "--offset" }, required = true,
 				usage = "Offset.")
 		private String offset;
 

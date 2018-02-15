@@ -48,7 +48,7 @@ public class N5LabelDownsamplerSpark
 	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
 	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
 	 * In case of equal frequencies, the smallest label value among them is chosen.
-	 * The output dataset will be created within the same N5 container.
+	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -63,6 +63,38 @@ public class N5LabelDownsamplerSpark
 			final String inputDatasetPath,
 			final String outputDatasetPath,
 			final int[] downsamplingFactors ) throws IOException
+	{
+		downsampleLabel(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				null
+			);
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
+	 * In case of equal frequencies, the smallest label value among them is chosen.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & IntegerType< T > > void downsampleLabel(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
@@ -83,7 +115,7 @@ public class N5LabelDownsamplerSpark
 		if ( Arrays.stream( outputDimensions ).min().getAsLong() < 1 )
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
 
-		final int[] outputBlockSize = inputAttributes.getBlockSize().clone();
+		final int[] outputBlockSize = blockSize != null ? blockSize : inputAttributes.getBlockSize();
 		n5.createDataset(
 				outputDatasetPath,
 				outputDimensions,
@@ -221,7 +253,8 @@ public class N5LabelDownsamplerSpark
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getOutputDatasetPath(),
-					parsedArgs.getDownsamplingFactors()
+					parsedArgs.getDownsamplingFactors(),
+					parsedArgs.getBlockSize()
 				);
 		}
 		System.out.println( "Done" );
@@ -247,6 +280,10 @@ public class N5LabelDownsamplerSpark
 				usage = "Downsampling factors.")
 		private String downsamplingFactors;
 
+		@Option(name = "-b", aliases = { "--blockSize" }, required = false,
+				usage = "Block size for the output dataset (by default same as for input dataset).")
+		private String blockSize;
+
 		public Arguments( final String... args ) throws IllegalArgumentException
 		{
 			final CmdLineParser parser = new CmdLineParser( this );
@@ -266,5 +303,6 @@ public class N5LabelDownsamplerSpark
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
+		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
 	}
 }
