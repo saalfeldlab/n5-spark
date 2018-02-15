@@ -45,9 +45,9 @@ public class N5LabelDownsamplerSpark
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * Downsamples the given input dataset with respect to the given downsampling factors.
 	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
-	 * In case of equal frequencies, the smallest label value among them is chosen.
+	 * In case of equal frequencies, the smallest label value among them is used.
 	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
 	 *
 	 * @param sparkContext
@@ -75,9 +75,9 @@ public class N5LabelDownsamplerSpark
 	}
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * Downsamples the given input dataset with respect to the given downsampling factors.
 	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
-	 * In case of equal frequencies, the smallest label value among them is chosen.
+	 * In case of equal frequencies, the smallest label value among them is used.
 	 * The output dataset will be created within the same N5 container with given block size.
 	 *
 	 * @param sparkContext

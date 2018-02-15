@@ -20,8 +20,6 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import com.esotericsoftware.kryo.Kryo;
-
 public class N5OffsetScalePyramidSpark
 {
 	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
@@ -29,17 +27,15 @@ public class N5OffsetScalePyramidSpark
 
 	/**
 	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors with half-pixel offset.
-	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
-	 * Reuses the block size of the input dataset. Stores the output datasets in the same group as the input datset.
+	 * Reuses the block size of the input dataset. Stores the resulting datasets in the same group as the input dataset.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with {@link Kryo} serializer
 	 * @param n5Supplier
-	 * 			{@link N5Writer} supplier
 	 * @param datasetPath
-	 * 			Path to the full-scale dataset
-	 *
-	 * @return downsampled dataset paths within the same N5 container
+	 * @param downsamplingStepFactors
+	 * @param dimensionsWithOffset
+	 * @return N5 paths to downsampled datasets
+	 * @throws IOException
 	 */
 	public static List< String > downsampleOffsetScalePyramid(
 			final JavaSparkContext sparkContext,
@@ -61,17 +57,16 @@ public class N5OffsetScalePyramidSpark
 
 	/**
 	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors with half-pixel offset.
-	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
-	 * Reuses the block size of the input dataset. Stores the output datasets under the given output group.
+	 * Reuses the block size of the input dataset. Stores the resulting datasets in the given output group.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with {@link Kryo} serializer
 	 * @param n5Supplier
-	 * 			{@link N5Writer} supplier
 	 * @param datasetPath
-	 * 			Path to the full-scale dataset
-	 *
-	 * @return downsampled dataset paths within the same N5 container
+	 * @param outputGroupPath
+	 * @param downsamplingStepFactors
+	 * @param dimensionsWithOffset
+	 * @return N5 paths to downsampled datasets
+	 * @throws IOException
 	 */
 	public static List< String > downsampleOffsetScalePyramid(
 			final JavaSparkContext sparkContext,

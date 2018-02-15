@@ -20,8 +20,6 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import com.esotericsoftware.kryo.Kryo;
-
 import net.imglib2.util.Util;
 
 public class N5NonIsotropicScalePyramidSpark3D
@@ -101,25 +99,17 @@ public class N5NonIsotropicScalePyramidSpark3D
 	private static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
 
 	/**
-	 * <p>
-	 * Generates a scale pyramid for a given dataset (3D only).
-	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
-	 * </p><p>
-	 * Assumes that the pixel resolution is the same in X and Y.
+	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
 	 * Each scale level is downsampled by 2 in XY, and by the corresponding factors in Z to be as close as possible to isotropic.
 	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
-	 * </p>
+	 * Stores the resulting datasets in the same group as the input dataset.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with {@link Kryo} serializer
 	 * @param n5Supplier
-	 * 			{@link N5Writer} supplier
-	 * @param datasetPath
-	 * 			Path to the full-scale dataset
-	 * @param voxelDimensions
-	 * 			Pixel resolution of the data
-	 *
-	 * @return downsampling factors for all scales including the input (full scale)
+	 * @param fullScaleDatasetPath
+	 * @param pixelResolution
+	 * @return N5 paths to downsampled datasets
+	 * @throws IOException
 	 */
 	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,
@@ -138,25 +128,18 @@ public class N5NonIsotropicScalePyramidSpark3D
 	}
 
 	/**
-	 * <p>
-	 * Generates a scale pyramid for a given dataset (3D only).
-	 * Stops generating scale levels once the size of the resulting volume is smaller than the block size in any dimension.
-	 * </p><p>
-	 * Assumes that the pixel resolution is the same in X and Y.
+	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
 	 * Each scale level is downsampled by 2 in XY, and by the corresponding factors in Z to be as close as possible to isotropic.
 	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
-	 * </p>
+	 * Stores the resulting datasets in the given output group.
 	 *
 	 * @param sparkContext
-	 * 			Spark context instantiated with {@link Kryo} serializer
 	 * @param n5Supplier
-	 * 			{@link N5Writer} supplier
-	 * @param datasetPath
-	 * 			Path to the full-scale dataset
-	 * @param voxelDimensions
-	 * 			Pixel resolution of the data
-	 *
-	 * @return downsampling factors for all scales including the input (full scale)
+	 * @param fullScaleDatasetPath
+	 * @param outputGroupPath
+	 * @param pixelResolution
+	 * @return N5 paths to downsampled datasets
+	 * @throws IOException
 	 */
 	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,

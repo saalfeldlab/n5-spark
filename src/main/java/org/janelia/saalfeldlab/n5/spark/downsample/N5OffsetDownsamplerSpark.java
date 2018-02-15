@@ -43,8 +43,8 @@ public class N5OffsetDownsamplerSpark
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
-	 * and the given offset. The output dataset will be created within the same N5 container with the same block size as the input dataset.
+	 * Downsamples the given input dataset with respect to the given downsampling factors and the given offset.
+	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
 	 *
 	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
 	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
@@ -72,14 +72,14 @@ public class N5OffsetDownsamplerSpark
 				inputDatasetPath,
 				outputDatasetPath,
 				downsamplingFactors,
-				null,
-				offset
+				offset,
+				null
 			);
 	}
 
 	/**
-	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors
-	 * and the given offset. The output dataset will be created within the same N5 container with given block size.
+	 * Downsamples the given input dataset with respect to the given downsampling factors and the given offset.
+	 * The output dataset will be created within the same N5 container with given block size.
 	 *
 	 * For example, if the input dataset dimensions are [9], the downsampling factor is [4], and the offset is [3],
 	 * the resulting accumulated pixels will be [(0),(1,2,3,4),(5,6,7,8)].
@@ -90,8 +90,8 @@ public class N5OffsetDownsamplerSpark
 	 * @param inputDatasetPath
 	 * @param outputDatasetPath
 	 * @param downsamplingFactors
-	 * @param blockSize
 	 * @param offset
+	 * @param blockSize
 	 * @throws IOException
 	 */
 	public static < T extends NativeType< T > & RealType< T > > void downsampleWithOffset(
@@ -100,8 +100,8 @@ public class N5OffsetDownsamplerSpark
 			final String inputDatasetPath,
 			final String outputDatasetPath,
 			final int[] downsamplingFactors,
-			final int[] blockSize,
-			final long[] offset ) throws IOException
+			final long[] offset,
+			final int[] blockSize ) throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
@@ -270,8 +270,8 @@ public class N5OffsetDownsamplerSpark
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getOutputDatasetPath(),
 					parsedArgs.getDownsamplingFactors(),
-					parsedArgs.getBlockSize(),
-					parsedArgs.getOffset()
+					parsedArgs.getOffset(),
+					parsedArgs.getBlockSize()
 				);
 		}
 		System.out.println( "Done" );
