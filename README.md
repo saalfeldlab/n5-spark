@@ -59,7 +59,7 @@ Generates a single downsampled export:
   -i <input dataset> 
   -o <output dataset> 
   -f <downsampling factors> 
-  [--offset]
+  [-b <block size>]
   ```
   </details>  
   <details> 
@@ -71,7 +71,7 @@ Generates a single downsampled export:
   -i <input dataset> 
   -o <output dataset> 
   -f <downsampling factors> 
-  [--offset]
+  [-b <block size>]
   ```
   </details>
   
@@ -86,6 +86,7 @@ Generates a single downsampled export:
   -i <input dataset> 
   -o <output dataset>
   -f <downsampling factors> 
+  [-b <block size>]
   ```
   </details>  
   <details> 
@@ -97,6 +98,36 @@ Generates a single downsampled export:
   -i <input dataset> 
   -o <output dataset>
   -f <downsampling factors> 
+  [-b <block size>]
+  ```
+  </details>
+
+* <b>N-dimensional offset downsampling</b>: performs a single downsampling step with given factors and offset.
+  <details>
+  <summary><b>Run on Janelia cluster</b></summary>
+  
+  ```bash
+  spark-janelia/n5-downsample-offset.py 
+  <number of cluster nodes> 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset> 
+  -f <downsampling factors> 
+  -s <offset>
+  [-b <block size>]
+  ```
+  </details>  
+  <details> 
+  <summary><b>Run on local machine</b></summary>
+  
+  ```bash
+  spark-local/n5-downsample-offset.py 
+  -n <path to n5 root> 
+  -i <input dataset> 
+  -o <output dataset> 
+  -f <downsampling factors> 
+  -s <offset>
+  [-b <block size>]
   ```
   </details>
 
@@ -127,17 +158,17 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>N-dimensional scale pyramid with half-pixel offset</b>: generates a scale pyramid with given factors and half-pixel offset applied on every scale level.
+* <b>N-dimensional offset scale pyramid</b>: generates a scale pyramid with given factors and half-pixel offset applied at every scale level.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-scale-pyramid-half-pixel-offset.py 
+  spark-janelia/n5-scale-pyramid-offset.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
   -f <downsampling factors> 
-  --offset <which dimensions to apply offset to>
+  -s <which dimensions to apply offset to>
   [-o <output group>]
   ```
   </details>  
@@ -145,21 +176,21 @@ Generates a scale pyramid:
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-scale-pyramid-half-pixel-offset.py 
+  spark-local/n5-scale-pyramid-offset.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -f <downsampling factors> 
-  --offset <which dimensions to apply offset to>
+  -s <which dimensions to apply offset to>
   [-o <output group>]
   ```
   </details>
   
-* <b>3D isotropic scale pyramid</b>: generates a power-of-two scale pyramid adjusting Z downsampling factors to the closest to isotropic with respect to X/Y. Z block sizes are adjusted as well to be the closest to isotropic multiple of the original Z block size.
+* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-scale-pyramid-isotropic-3d.py 
+  spark-janelia/n5-scale-pyramid-nonisotropic-3d.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -171,7 +202,7 @@ Generates a scale pyramid:
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-scale-pyramid-isotropic-3d.py 
+  spark-local/n5-scale-pyramid-nonisotropic-3d.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -r <pixel resolution> 
@@ -179,8 +210,8 @@ Generates a scale pyramid:
   ```
   </details>
 
-If the output group argument is omitted for scale pyramid exporters, the resulting datasets are stored in the same group with the input dataset. The naming scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
-The resulting datasets have the same block size as the given input dataset. Their respective downsampling factors are written into the attributes metadata of the lower resolution datasets.
+If the output group argument is omitted for scale pyramid exporters, the resulting datasets will be stored in the same group with the input dataset. The naming scheme for the lower resolution datasets is `s1`, `s2`, `s3` and so on.<br/>
+If the block size argument is omitted, the resulting dataset will have the same block size as the input dataset. Downsampling factors are written into the attributes metadata of the lower resolution datasets.
 
 
 ### N5 to slice TIFF series converter
