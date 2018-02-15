@@ -26,43 +26,75 @@ import net.imglib2.util.Util;
 
 public class N5NonIsotropicScalePyramidSpark3D
 {
-	public static class IsotropicScalingParameters
+	static class NonIsotropicMetadata
 	{
+		public final long[] dimensions;
 		public final int[] cellSize;
 		public final int[] downsamplingFactors;
 
-		public IsotropicScalingParameters( final int[] cellSize, final int[] downsamplingFactors )
+		public NonIsotropicMetadata(
+				final long[] dimensions,
+				final int[] cellSize,
+				final int[] downsamplingFactors )
 		{
+			this.dimensions = dimensions;
 			this.cellSize = cellSize;
 			this.downsamplingFactors = downsamplingFactors;
 		}
 	}
 
-	public static class IsotropicScalingEstimator
+	static class NonIsotropicScalePyramidMetadata
 	{
+		public final List< NonIsotropicMetadata > scalesMetadata;
+
+		public NonIsotropicScalePyramidMetadata( final long[] fullScaleDimensions, final int[] fullScaleCellSize, final double[] pixelResolution )
+		{
+			final double pixelResolutionZtoXY = getPixelResolutionZtoXY( pixelResolution );
+
+			scalesMetadata = new ArrayList<>();
+			scalesMetadata.add( new NonIsotropicMetadata( fullScaleDimensions.clone(), fullScaleCellSize.clone(), new int[] { 1, 1, 1 } ) );
+
+			for ( int scale = 1; ; ++scale )
+			{
+				final int xyDownsamplingFactor = 1 << scale;
+				final int isotropicScaling = ( int ) Math.round( xyDownsamplingFactor / pixelResolutionZtoXY );
+				final int zDownsamplingFactor = Math.max( isotropicScaling, 1 );
+				final int[] downsamplingFactors = new int[] { xyDownsamplingFactor, xyDownsamplingFactor, zDownsamplingFactor };
+
+				final long[] downsampledDimensions = new long[ fullScaleDimensions.length ];
+				for ( int d = 0; d < downsampledDimensions.length; ++d )
+					downsampledDimensions[ d ] = fullScaleDimensions[ d ] / downsamplingFactors[ d ];
+
+				if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 )
+					break;
+
+				final int fullScaleOptimalCellSize = ( int ) Math.round( Math.max( fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ] ) / pixelResolutionZtoXY );
+				final int zOptimalCellSize = ( int ) Math.round( ( long ) fullScaleOptimalCellSize * xyDownsamplingFactor / ( double ) zDownsamplingFactor );
+				final int zPreviousCellSize = scalesMetadata.get( scale - 1 ).cellSize[ 2 ];
+				final int zCellSize = ( int ) Math.round( zOptimalCellSize / ( double ) zPreviousCellSize ) * zPreviousCellSize;
+				final int zMaxCellSize = Math.max( ( int ) Math.round( fullScaleOptimalCellSize * pixelResolutionZtoXY ), Math.max( fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ] ) );
+				final int zAdjustedCellSize = Math.min( zCellSize, ( zMaxCellSize / zPreviousCellSize ) * zPreviousCellSize );
+				final int[] downsampledCellSize = new int[] { fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ], zAdjustedCellSize };
+
+				scalesMetadata.add( new NonIsotropicMetadata( downsampledDimensions, downsampledCellSize, downsamplingFactors ) );
+			}
+		}
+
+		public int getNumScales()
+		{
+			return scalesMetadata.size();
+		}
+
+		public NonIsotropicMetadata getScaleMetadata( final int scale )
+		{
+			return scalesMetadata.get( scale );
+		}
+
 		public static double getPixelResolutionZtoXY( final double[] pixelResolution )
 		{
 			if ( pixelResolution == null )
 				return 1;
 			return pixelResolution[ 2 ] / Math.max( pixelResolution[ 0 ], pixelResolution[ 1 ] );
-		}
-
-		public static IsotropicScalingParameters getOptimalCellSizeAndDownsamplingFactor( final int scaleLevel, final int[] originalCellSize, final double[] pixelResolution )
-		{
-			final double pixelResolutionZtoXY = getPixelResolutionZtoXY( pixelResolution );
-
-			final int xyDownsamplingFactor = 1 << scaleLevel;
-			final int isotropicScaling = ( int ) Math.round( xyDownsamplingFactor / pixelResolutionZtoXY );
-			final int zDownsamplingFactor = Math.max( isotropicScaling, 1 );
-			final int[] downsamplingFactors = new int[] { xyDownsamplingFactor, xyDownsamplingFactor, zDownsamplingFactor };
-
-			final int fullScaleOptimalCellSize = ( int ) Math.round( Math.max( originalCellSize[ 0 ], originalCellSize[ 1 ] ) / pixelResolutionZtoXY );
-			final int zOptimalCellSize = ( int ) Math.round( ( long ) fullScaleOptimalCellSize * xyDownsamplingFactor / ( double ) zDownsamplingFactor );
-			final int zMaxCellSize = Math.max( ( int ) Math.round( fullScaleOptimalCellSize * pixelResolutionZtoXY ), Math.max( originalCellSize[ 0 ], originalCellSize[ 1 ] ) );
-			final int zAdjustedCellSize = Math.min( ( int ) Math.round( ( zOptimalCellSize / ( double ) fullScaleOptimalCellSize ) ) * fullScaleOptimalCellSize, zMaxCellSize );
-			final int[] cellSize = new int[] { originalCellSize[ 0 ], originalCellSize[ 1 ], zAdjustedCellSize };
-
-			return new IsotropicScalingParameters( cellSize, downsamplingFactors );
 		}
 	}
 
@@ -92,14 +124,14 @@ public class N5NonIsotropicScalePyramidSpark3D
 	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
-			final String datasetPath,
+			final String fullScaleDatasetPath,
 			final double[] pixelResolution ) throws IOException
 	{
-		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
+		final String outputGroupPath = ( Paths.get( fullScaleDatasetPath ).getParent() != null ? Paths.get( fullScaleDatasetPath ).getParent().toString() : "" );
 		return downsampleNonIsotropicScalePyramid(
 				sparkContext,
 				n5Supplier,
-				datasetPath,
+				fullScaleDatasetPath,
 				outputGroupPath,
 				pixelResolution
 			);
@@ -129,57 +161,85 @@ public class N5NonIsotropicScalePyramidSpark3D
 	public static List< String > downsampleNonIsotropicScalePyramid(
 			final JavaSparkContext sparkContext,
 			final N5WriterSupplier n5Supplier,
-			final String datasetPath,
+			final String fullScaleDatasetPath,
 			final String outputGroupPath,
 			final double[] pixelResolution ) throws IOException
 	{
 		if ( !Util.isApproxEqual( pixelResolution[ 0 ], pixelResolution[ 1 ], 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is different in X/Y" );
 
-		if ( Util.isApproxEqual( IsotropicScalingEstimator.getPixelResolutionZtoXY( pixelResolution ), 1.0, 1e-10 ) )
+		if ( Util.isApproxEqual( NonIsotropicScalePyramidMetadata.getPixelResolutionZtoXY( pixelResolution ), 1.0, 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is the same in X/Y/Z, use regular N5ScalePyramidSpark" );
 
 		final N5Writer n5 = n5Supplier.get();
-		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( datasetPath );
+		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( fullScaleDatasetPath );
 		final long[] fullScaleDimensions = fullScaleAttributes.getDimensions();
 		final int[] fullScaleCellSize = fullScaleAttributes.getBlockSize();
 
-		// downsample in XY
+		// prepare for downsampling in XY
 		final String xyGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-xy" ).toString();
-		N5ScalePyramidSpark.downsampleScalePyramid(
-				sparkContext,
-				n5Supplier,
-				datasetPath,
-				xyGroupPath,
-				new int[] { 2, 2, 1 }
-			);
+		n5.createGroup( xyGroupPath );
 
 		final List< String > downsampledDatasets = new ArrayList<>();
+		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( fullScaleDimensions, fullScaleCellSize, pixelResolution );
 
-		// downsample in Z
-		for ( int scale = 1; ; ++scale )
+		for ( int scale = 1; scale < scalePyramidMetadata.getNumScales(); ++scale )
 		{
-			final IsotropicScalingParameters isotropicDownsamplingParameters = IsotropicScalingEstimator.getOptimalCellSizeAndDownsamplingFactor( scale, fullScaleCellSize, pixelResolution );
-
-			final long[] downsampledDimensions = fullScaleDimensions.clone();
-			for ( int d = 0; d < downsampledDimensions.length; ++d )
-				downsampledDimensions[ d ] /= isotropicDownsamplingParameters.downsamplingFactors[ d ];
-
-			if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 )
-				break;
-
-			final String inputDatasetPath = Paths.get( xyGroupPath, "s" + scale ).toString();
+			final NonIsotropicMetadata scaleMetadata = scalePyramidMetadata.getScaleMetadata( scale );
 			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
-			N5DownsamplerSpark.downsample(
-					sparkContext,
-					n5Supplier,
-					inputDatasetPath,
-					outputDatasetPath,
-					new int[] { 1, 1, isotropicDownsamplingParameters.downsamplingFactors[ 2 ] },
-					isotropicDownsamplingParameters.cellSize
-				);
 
-			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, isotropicDownsamplingParameters.downsamplingFactors );
+			if ( scaleMetadata.downsamplingFactors[ 2 ] == 1 )
+			{
+				final String inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
+
+				// downsampling in Z is not happening yet at this scale level, downsample in XY and save directly in the output group
+				N5DownsamplerSpark.downsample(
+						sparkContext,
+						n5Supplier,
+						inputDatasetPath,
+						outputDatasetPath,
+						new int[] { 2, 2, 1 },
+						scaleMetadata.cellSize
+					);
+			}
+			else
+			{
+				final String inputDatasetPath;
+				if ( scalePyramidMetadata.getScaleMetadata( scale - 1 ).downsamplingFactors[ 2 ] == 1 )
+				{
+					// this is the first scale level where downsampling in Z is required
+					inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
+				}
+				else
+				{
+					// there exists an intermediate XY downsampled export
+					inputDatasetPath = Paths.get( xyGroupPath, "s" + ( scale - 1 ) ).toString();
+				}
+
+				final String xyDatasetPath = Paths.get( xyGroupPath, "s" + scale ).toString();
+
+				// downsample in XY and store in the intermediate export group
+				N5DownsamplerSpark.downsample(
+						sparkContext,
+						n5Supplier,
+						inputDatasetPath,
+						xyDatasetPath,
+						new int[] { 2, 2, 1 },
+						scaleMetadata.cellSize
+					);
+
+				// downsample in Z and store in the output group
+				N5DownsamplerSpark.downsample(
+						sparkContext,
+						n5Supplier,
+						xyDatasetPath,
+						outputDatasetPath,
+						new int[] { 1, 1, scaleMetadata.downsamplingFactors[ 2 ] },
+						scaleMetadata.cellSize
+					);
+			}
+
+			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleMetadata.downsamplingFactors );
 			downsampledDatasets.add( outputDatasetPath );
 		}
 
