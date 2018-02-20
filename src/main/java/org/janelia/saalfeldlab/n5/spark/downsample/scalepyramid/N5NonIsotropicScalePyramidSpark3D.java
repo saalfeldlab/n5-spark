@@ -161,10 +161,21 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 		// prepare for downsampling in XY
 		final String xyGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-xy" ).toString();
+		if ( n5.exists( xyGroupPath ) )
+			throw new RuntimeException( "Group for intermediate downsampling in XY already exists: " + xyGroupPath );
 		n5.createGroup( xyGroupPath );
 
 		final List< String > downsampledDatasets = new ArrayList<>();
 		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( fullScaleDimensions, fullScaleCellSize, pixelResolution );
+
+		// check for existence of output datasets and fail if any of them already exist
+		// it is safer to do so because otherwise the user may accidentally overwrite useful data
+		for ( int scale = 1; scale < scalePyramidMetadata.getNumScales(); ++scale )
+		{
+			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
+			if ( n5.datasetExists( outputDatasetPath ) )
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+		}
 
 		for ( int scale = 1; scale < scalePyramidMetadata.getNumScales(); ++scale )
 		{
