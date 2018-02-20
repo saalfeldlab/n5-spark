@@ -21,4 +21,4 @@ os.environ['TERMINATE'] = '1'
 
 nodes = int(sys.argv[1])
 
-subprocess.call([flintstone_path, str(nodes), bin_path, 'org.janelia.saalfeldlab.n5.spark.scalepyramid.N5NonIsotropicScalePyramidSpark3D'] + sys.argv[2:])
+subprocess.call([flintstone_path, str(nodes), bin_path, 'org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D'] + sys.argv[2:])
