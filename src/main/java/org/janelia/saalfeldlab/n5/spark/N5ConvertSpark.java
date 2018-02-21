@@ -120,9 +120,7 @@ public class N5ConvertSpark
 		final long[] dimensions = inputAttributes.getDimensions();
 		n5Output.createDataset( outputDatasetPath, dimensions, outputBlockSize, outputDataType, outputCompression );
 
-		final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, outputBlockSize ).getGridDimensions() );
-		final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
-
+		// derive input and output value range
 		final double minInputValue, maxInputValue;
 		if ( valueRangeOptional.isPresent() )
 		{
@@ -152,10 +150,13 @@ public class N5ConvertSpark
 		}
 		else
 		{
-			final I outputType = dataTypeToImglibType( outputDataType );
+			final O outputType = dataTypeToImglibType( outputDataType );
 			minOutputValue = outputType.getMinValue();
 			maxOutputValue = outputType.getMaxValue();
 		}
+
+		final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, outputBlockSize ).getGridDimensions() );
+		final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
 
 		sparkContext.parallelize( outputBlockIndexes, Math.min( outputBlockIndexes.size(), MAX_PARTITIONS ) ).foreach( outputBlockIndex ->
 		{
