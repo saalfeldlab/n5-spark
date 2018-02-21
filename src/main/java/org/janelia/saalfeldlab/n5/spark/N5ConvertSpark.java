@@ -161,6 +161,9 @@ public class N5ConvertSpark
 			maxOutputValue = outputType.getMaxValue();
 		}
 
+		System.out.println( "Input value range: " + Arrays.toString( new double[] { minInputValue, maxInputValue } ) );
+		System.out.println( "Output value range: " + Arrays.toString( new double[] { minOutputValue, maxOutputValue } ) );
+
 		final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, outputBlockSize ).getGridDimensions() );
 		final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
 
