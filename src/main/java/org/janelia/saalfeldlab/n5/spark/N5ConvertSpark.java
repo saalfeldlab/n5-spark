@@ -188,15 +188,13 @@ public class N5ConvertSpark
 			}
 			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
 
-			final RandomAccessibleInterval< O > target = new ArrayImgFactory< O >().create( outputBlockInterval, outputType.createVariable() );
-
-			final Cursor< O > sourceCursor = Views.flatIterable( convertedSourceInterval ).cursor();
-			final Cursor< O > targetCursor = Views.flatIterable( target ).cursor();
-
-			while ( sourceCursor.hasNext() || targetCursor.hasNext() )
-				targetCursor.next().set( sourceCursor.next() );
-
-			N5Utils.saveNonEmptyBlock( target, n5OutputSupplier.get(), outputDatasetPath, outputBlockGridPosition, outputType.createVariable() );
+			N5Utils.saveNonEmptyBlock(
+					convertedSourceInterval,
+					n5OutputSupplier.get(),
+					outputDatasetPath,
+					outputBlockGridPosition,
+					outputType.createVariable()
+				);
 		} );
 	}
 
