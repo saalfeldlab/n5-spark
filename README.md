@@ -44,6 +44,51 @@ The scripts for starting the application are located under `startup-scripts/spar
 If running locally, you can access the Spark job tracker at http://localhost:4040/ to monitor the progress of the tasks.
 
 
+### N5 converter
+
+<details>
+<summary><b>Run on Janelia cluster</b></summary>
+
+```bash
+spark-janelia/n5-convert.py 
+<number of cluster nodes> 
+-ni <path to input n5 root> 
+-i <input dataset>
+[-no <path to output n5 root if not the same as input n5>]
+-o <output dataset>
+[-b <output block size>]
+[-c <output compression scheme>]
+[-t <output data type>]
+[-min <min value of input data range>]
+[-max <max value of input data range>]
+```
+</details>
+
+<details>
+<summary><b>Run on local machine</b></summary>
+
+```bash
+spark-local/n5-convert.py 
+-ni <path to input n5 root> 
+-i <input dataset>
+[-no <path to output n5 root if not the same as input n5>]
+-o <output dataset>
+[-b <output block size>]
+[-c <output compression scheme>]
+[-t <output data type>]
+[-min <min value of input data range>]
+[-max <max value of input data range>]
+```
+</details>
+
+Converts an N5 dataset using different parameters:
+* *block size*
+* *compression scheme*
+* *data type*: the values are mapped from the input value range to the output value range.<br/>
+The optional `-min` and `-max` arguments specify the input data value range. If omitted, the input value range is derived from the input data type for integer types, or set to `[0,1]` for real types by default.<br/>
+The output value range is derived from the output data type for integer types, or set to `[0,1]` for real types.
+
+
 ### N5 downsampling
 
 Generates a single downsampled export:
