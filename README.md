@@ -81,10 +81,11 @@ spark-local/n5-convert.py
 ```
 </details>
 
-Converts an N5 dataset using different parameters:
-* *block size*
-* *compression scheme*
-* *data type*: the values are mapped from the input value range to the output value range.<br/>
+Resaves an N5 dataset possibly changing all or some of the following dataset attributes:
+* *block size*: if omitted, the block size of the input dataset is used.
+* *compression scheme*: if omitted, the compression scheme of the input dataset is used.
+* *data type*: if omitted, the data type of the input dataset is used.<br/>
+If specified and is different from the input dataset type, the values are mapped from the input value range to the output value range.<br/>
 The optional `-min` and `-max` arguments specify the input data value range. If omitted, the input value range is derived from the input data type for integer types, or set to `[0,1]` for real types by default.<br/>
 The output value range is derived from the output data type for integer types, or set to `[0,1]` for real types.
 
