@@ -30,14 +30,12 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.converter.Converter;
 import net.imglib2.converter.Converters;
-import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
@@ -81,12 +79,20 @@ public class N5ConvertSpark
 		public void convert( final I input, final O output )
 		{
 			final double inputValue = input.getRealDouble();
-			if ( inputValue < minInputValue || inputValue > maxInputValue )
-				throw new RuntimeException( "input value " + inputValue + " is beyond the specified range " + Arrays.toString( new double[] { minInputValue, maxOutputValue } ) );
-
-			final double normalizedInputValue = ( inputValue - minInputValue ) / inputValueRange;
-			final double realOutputValue = normalizedInputValue * outputValueRange + minOutputValue;
-			output.setReal( realOutputValue );
+			if ( inputValue <= minInputValue )
+			{
+				output.setReal( minOutputValue );
+			}
+			else if ( inputValue >= maxInputValue )
+			{
+				output.setReal( maxOutputValue );
+			}
+			else
+			{
+				final double normalizedInputValue = ( inputValue - minInputValue ) / inputValueRange;
+				final double realOutputValue = normalizedInputValue * outputValueRange + minOutputValue;
+				output.setReal( realOutputValue );
+			}
 		}
 	}
 
