@@ -14,6 +14,8 @@ import org.janelia.saalfeldlab.n5.GzipCompression;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.RawCompression;
+import org.janelia.saalfeldlab.n5.XzCompression;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.junit.After;
 import org.junit.Assert;
@@ -29,7 +31,9 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.type.numeric.integer.ShortType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.ValuePair;
 import net.imglib2.view.Views;
 
 public class N5ConvertSparkTest
@@ -71,11 +75,11 @@ public class N5ConvertSparkTest
 	}
 
 	@Test
-	public void test() throws IOException
+	public void testShortToByte() throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		final long[] dimensions = new long[] { 4, 5, 6 };
-		N5Utils.save( createImage( new ShortType( ( short ) 20000 ), dimensions ), n5, datasetPath, new int[] { 2, 3, 1 }, new GzipCompression() );
+		N5Utils.save( createImage( new ShortType( ( short ) 50 ), dimensions ), n5, datasetPath, new int[] { 2, 3, 1 }, new XzCompression() );
 
 		N5ConvertSpark.convert(
 				sparkContext,
@@ -85,7 +89,8 @@ public class N5ConvertSparkTest
 				convertedDatasetPath,
 				Optional.of( new int[] { 5, 1, 2 } ),
 				Optional.of( new Bzip2Compression() ),
-				Optional.of( DataType.UINT8 )
+				Optional.of( DataType.INT8 ),
+				Optional.of( new ValuePair<>( new Double( -100 ), new Double( 70 ) ) )
 			);
 
 		Assert.assertTrue( n5.datasetExists( convertedDatasetPath ) );
@@ -94,10 +99,43 @@ public class N5ConvertSparkTest
 		Assert.assertArrayEquals( dimensions, convertedAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 5, 1, 2 }, convertedAttributes.getBlockSize() );
 		Assert.assertEquals( new Bzip2Compression().getType(), convertedAttributes.getCompression().getType() );
+		Assert.assertEquals( DataType.INT8, convertedAttributes.getDataType() );
+
+		Assert.assertArrayEquals(
+				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 97 ), dimensions ).update( null ) ).getCurrentStorageArray(),
+				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
+			);
+	}
+
+	@Test
+	public void testFloatToUnsignedByte() throws IOException
+	{
+		final N5Writer n5 = n5Supplier.get();
+		final long[] dimensions = new long[] { 4, 5, 6 };
+		N5Utils.save( createImage( new FloatType( ( float ) 0.25 ), dimensions ), n5, datasetPath, new int[] { 2, 3, 1 }, new RawCompression() );
+
+		N5ConvertSpark.convert(
+				sparkContext,
+				() -> new N5FSReader( basePath ),
+				datasetPath,
+				n5Supplier,
+				convertedDatasetPath,
+				Optional.of( new int[] { 5, 1, 2 } ),
+				Optional.of( new GzipCompression() ),
+				Optional.of( DataType.UINT8 ),
+				Optional.empty()
+			);
+
+		Assert.assertTrue( n5.datasetExists( convertedDatasetPath ) );
+
+		final DatasetAttributes convertedAttributes = n5.getDatasetAttributes( convertedDatasetPath );
+		Assert.assertArrayEquals( dimensions, convertedAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 5, 1, 2 }, convertedAttributes.getBlockSize() );
+		Assert.assertEquals( new GzipCompression().getType(), convertedAttributes.getCompression().getType() );
 		Assert.assertEquals( DataType.UINT8, convertedAttributes.getDataType() );
 
 		Assert.assertArrayEquals(
-				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 205 ), dimensions ).update( null ) ).getCurrentStorageArray(),
+				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 64 ), dimensions ).update( null ) ).getCurrentStorageArray(),
 				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
 			);
 	}

@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -51,6 +52,8 @@ import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.Pair;
+import net.imglib2.util.ValuePair;
 import net.imglib2.view.Views;
 
 public class N5ConvertSpark
@@ -59,13 +62,30 @@ public class N5ConvertSpark
 
 	private static class ClampingConverter< I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > implements Converter< I, O >
 	{
+		private final double minInputValue, maxInputValue;
+		private final double minOutputValue, maxOutputValue;
+		private final double inputValueRange, outputValueRange;
+
+		public ClampingConverter(
+				final double minInputValue, final double maxInputValue,
+				final double minOutputValue, final double maxOutputValue)
+		{
+			this.minInputValue = minInputValue; this.maxInputValue = maxInputValue;
+			this.minOutputValue = minOutputValue; this.maxOutputValue = maxOutputValue;
+
+			inputValueRange = maxInputValue - minInputValue;
+			outputValueRange = maxOutputValue - minOutputValue;
+		}
+
 		@Override
 		public void convert( final I input, final O output )
 		{
-			final double inputRange = input.getMaxValue() - input.getMinValue();
-			final double outputRange = output.getMaxValue() - output.getMinValue();
-			final double normalizedInputValue = ( input.getRealDouble() - input.getMinValue() ) / inputRange;
-			final double realOutputValue = normalizedInputValue * outputRange + output.getMinValue();
+			final double inputValue = input.getRealDouble();
+			if ( inputValue < minInputValue || inputValue > maxInputValue )
+				throw new RuntimeException( "input value " + inputValue + " is beyond the specified range " + Arrays.toString( new double[] { minInputValue, maxOutputValue } ) );
+
+			final double normalizedInputValue = ( inputValue - minInputValue ) / inputValueRange;
+			final double realOutputValue = normalizedInputValue * outputValueRange + minOutputValue;
 			output.setReal( realOutputValue );
 		}
 	}
@@ -79,7 +99,8 @@ public class N5ConvertSpark
 			final String outputDatasetPath,
 			final Optional< int[] > blockSizeOptional,
 			final Optional< Compression > compressionOptional,
-			final Optional< DataType > dataTypeOptional ) throws IOException
+			final Optional< DataType > dataTypeOptional,
+			final Optional< Pair< Double, Double > > valueRangeOptional ) throws IOException
 	{
 		final N5Reader n5Input = n5InputSupplier.get();
 		final DatasetAttributes inputAttributes = n5Input.getDatasetAttributes( inputDatasetPath );
@@ -102,6 +123,40 @@ public class N5ConvertSpark
 		final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, outputBlockSize ).getGridDimensions() );
 		final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
 
+		final double minInputValue, maxInputValue;
+		if ( valueRangeOptional.isPresent() )
+		{
+			minInputValue = valueRangeOptional.get().getA();
+			maxInputValue = valueRangeOptional.get().getB();
+		}
+		else
+		{
+			if ( inputDataType == DataType.FLOAT32 || inputDataType == DataType.FLOAT64 )
+			{
+				minInputValue = 0;
+				maxInputValue = 1;
+			}
+			else
+			{
+				final I inputType = dataTypeToImglibType( inputDataType );
+				minInputValue = inputType.getMinValue();
+				maxInputValue = inputType.getMaxValue();
+			}
+		}
+
+		final double minOutputValue, maxOutputValue;
+		if ( outputDataType == DataType.FLOAT32 || outputDataType == DataType.FLOAT64 )
+		{
+			minOutputValue = 0;
+			maxOutputValue = 1;
+		}
+		else
+		{
+			final I outputType = dataTypeToImglibType( outputDataType );
+			minOutputValue = outputType.getMinValue();
+			maxOutputValue = outputType.getMaxValue();
+		}
+
 		sparkContext.parallelize( outputBlockIndexes, Math.min( outputBlockIndexes.size(), MAX_PARTITIONS ) ).foreach( outputBlockIndex ->
 		{
 			final CellGrid outputBlockGrid = new CellGrid( dimensions, outputBlockSize );
@@ -120,9 +175,16 @@ public class N5ConvertSpark
 			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
 			final RandomAccessible< O > convertedSource;
 			if ( inputDataType == outputDataType )
+			{
 				convertedSource = ( RandomAccessible< O > ) source;
+			}
 			else
-				convertedSource = Converters.convert( source, new ClampingConverter< I, O >(), outputType.createVariable() );
+			{
+				convertedSource = Converters.convert( source, new ClampingConverter< I, O >(
+						minInputValue, maxInputValue,
+						minOutputValue, maxOutputValue
+					), outputType.createVariable() );
+			}
 			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
 
 			final RandomAccessibleInterval< O > target = new ArrayImgFactory< O >().create( outputBlockInterval, outputType.createVariable() );
@@ -186,7 +248,8 @@ public class N5ConvertSpark
 					parsedArgs.getOutputDatasetPath(),
 					Optional.ofNullable( parsedArgs.getBlockSize() ),
 					Optional.ofNullable( parsedArgs.getCompression() ),
-					Optional.ofNullable( parsedArgs.getDataType() )
+					Optional.ofNullable( parsedArgs.getDataType() ),
+					Optional.ofNullable( parsedArgs.getValueRange() )
 				);
 		}
 
@@ -226,6 +289,14 @@ public class N5ConvertSpark
 						+ "If a different type is used, the values are mapped to the range of the output type, rounding to the nearest integer value if necessary.")
 		private DataType dataType;
 
+		@Option(name = "-min", aliases = { "--minValue" }, required = false,
+				usage = "Minimum value of the input range to be used for the conversion (default is min type value for integer types, or 0 for real types).")
+		private Double minValue;
+
+		@Option(name = "-max", aliases = { "--maxValue" }, required = false,
+				usage = "Maximum value of the input range to be used for the conversion (default is max type value for integer types, or 1 for real types).")
+		private Double maxValue;
+
 		private int[] blockSize;
 		private Compression compression;
 
@@ -262,6 +333,9 @@ public class N5ConvertSpark
 						throw new IllegalArgumentException( "Incorrect compression argument specified. Supported compression schemes are: " + Arrays.toString( defaultCompressions.keySet().toArray( new String[ 0 ] ) ) );
 				}
 
+				if ( Objects.isNull( minValue ) != Objects.isNull( maxValue ) )
+					throw new IllegalArgumentException( "minValue and maxValue should be either both specified or omitted." );
+
 				parsedSuccessfully = true;
 			}
 			catch ( final CmdLineException e )
@@ -279,5 +353,6 @@ public class N5ConvertSpark
 		public int[] getBlockSize() { return blockSize; }
 		public Compression getCompression() { return compression; }
 		public DataType getDataType() { return dataType; }
+		public Pair< Double, Double > getValueRange() { return Objects.nonNull( minValue ) && Objects.nonNull( maxValue ) ? new ValuePair<>( minValue, maxValue ) : null; }
 	}
 }
