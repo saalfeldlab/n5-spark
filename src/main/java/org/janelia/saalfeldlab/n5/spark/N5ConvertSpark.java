@@ -355,7 +355,7 @@ public class N5ConvertSpark
 
 		public boolean parsedSuccessfully() { return parsedSuccessfully; }
 		public String getInputN5Path() { return n5InputPath; }
-		public String getOutputN5Path() { return n5OutputPath; }
+		public String getOutputN5Path() { return n5OutputPath != null ? n5OutputPath : n5InputPath; }
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getBlockSize() { return blockSize; }
