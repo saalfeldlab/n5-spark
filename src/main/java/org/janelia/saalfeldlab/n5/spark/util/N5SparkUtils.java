@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.util;
 
 import static net.imglib2.cache.img.PrimitiveType.BYTE;
 import static net.imglib2.cache.img.PrimitiveType.DOUBLE;

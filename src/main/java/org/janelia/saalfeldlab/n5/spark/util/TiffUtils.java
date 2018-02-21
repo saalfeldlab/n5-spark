@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.util;
 
 import ij.IJ;
 import ij.ImagePlus;
