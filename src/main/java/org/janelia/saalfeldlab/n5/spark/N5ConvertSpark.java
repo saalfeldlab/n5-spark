@@ -67,7 +67,7 @@ public class N5ConvertSpark
 
 		public ClampingConverter(
 				final double minInputValue, final double maxInputValue,
-				final double minOutputValue, final double maxOutputValue)
+				final double minOutputValue, final double maxOutputValue )
 		{
 			this.minInputValue = minInputValue; this.maxInputValue = maxInputValue;
 			this.minOutputValue = minOutputValue; this.maxOutputValue = maxOutputValue;
@@ -165,6 +165,52 @@ public class N5ConvertSpark
 		System.out.println( "Input value range: " + Arrays.toString( new double[] { minInputValue, maxInputValue } ) );
 		System.out.println( "Output value range: " + Arrays.toString( new double[] { minOutputValue, maxOutputValue } ) );
 
+		if ( Intervals.numElements( outputBlockSize ) >= Intervals.numElements( inputBlockSize ) )
+		{
+			System.out.println( "Output block size is the same or bigger than the input block size, parallelizing over output blocks..." );
+			convertParallelizingOverOutputBlocks(
+					sparkContext,
+					n5InputSupplier,
+					inputDatasetPath,
+					n5OutputSupplier,
+					outputDatasetPath,
+					minInputValue, maxInputValue,
+					minOutputValue, maxOutputValue
+				);
+		}
+		else
+		{
+			System.out.println( "Output block size is smaller than the input block size, parallelizing over adjusted input blocks..." );
+			convertParallelizingOverAdjustedInputBlocks(
+					sparkContext,
+					n5InputSupplier,
+					inputDatasetPath,
+					n5OutputSupplier,
+					outputDatasetPath,
+					minInputValue, maxInputValue,
+					minOutputValue, maxOutputValue
+				);
+		}
+	}
+
+	private static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convertParallelizingOverOutputBlocks(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5InputSupplier,
+			final String inputDatasetPath,
+			final N5WriterSupplier n5OutputSupplier,
+			final String outputDatasetPath,
+			final double minInputValue, final double maxInputValue,
+			final double minOutputValue, final double maxOutputValue
+		) throws IOException
+	{
+		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
+		final long[] dimensions = inputAttributes.getDimensions();
+		final DataType inputDataType = inputAttributes.getDataType();
+
+		final DatasetAttributes outputAttributes = n5OutputSupplier.get().getDatasetAttributes( outputDatasetPath );
+		final int[] outputBlockSize = outputAttributes.getBlockSize();
+		final DataType outputDataType = outputAttributes.getDataType();
+
 		final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, outputBlockSize ).getGridDimensions() );
 		final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
 
@@ -197,6 +243,78 @@ public class N5ConvertSpark
 					), outputType.createVariable() );
 			}
 			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
+
+			N5Utils.saveNonEmptyBlock(
+					convertedSourceInterval,
+					n5OutputSupplier.get(),
+					outputDatasetPath,
+					outputBlockGridPosition,
+					outputType.createVariable()
+				);
+		} );
+	}
+
+	private static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convertParallelizingOverAdjustedInputBlocks(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5InputSupplier,
+			final String inputDatasetPath,
+			final N5WriterSupplier n5OutputSupplier,
+			final String outputDatasetPath,
+			final double minInputValue, final double maxInputValue,
+			final double minOutputValue, final double maxOutputValue
+		) throws IOException
+	{
+		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
+		final long[] dimensions = inputAttributes.getDimensions();
+		final int[] inputBlockSize = inputAttributes.getBlockSize();
+		final DataType inputDataType = inputAttributes.getDataType();
+
+		final DatasetAttributes outputAttributes = n5OutputSupplier.get().getDatasetAttributes( outputDatasetPath );
+		final int[] outputBlockSize = outputAttributes.getBlockSize();
+		final DataType outputDataType = outputAttributes.getDataType();
+
+		// adjust the size of the processing block to minimize number of reads of each input block
+		final int[] adjustedBlockSize = new int[ inputBlockSize.length ];
+		for ( int d = 0; d < adjustedBlockSize.length; ++d )
+			adjustedBlockSize[ d ] = ( int ) Math.round( ( double ) inputBlockSize[ d ] / outputBlockSize[ d ] ) * outputBlockSize[ d ];
+
+		final long numAdjustedBlocks = Intervals.numElements( new CellGrid( dimensions, adjustedBlockSize ).getGridDimensions() );
+		final List< Long > adjustedBlockIndexes = LongStream.range( 0, numAdjustedBlocks ).boxed().collect( Collectors.toList() );
+
+		sparkContext.parallelize( adjustedBlockIndexes, Math.min( adjustedBlockIndexes.size(), MAX_PARTITIONS ) ).foreach( adjustedBlockIndex ->
+		{
+			final CellGrid adjustedBlockGrid = new CellGrid( dimensions, adjustedBlockSize );
+			final long[] adjustedBlockGridPosition = new long[ adjustedBlockGrid.numDimensions() ];
+			adjustedBlockGrid.getCellGridPositionFlat( adjustedBlockIndex, adjustedBlockGridPosition );
+
+			final long[] adjustedBlockMin = new long[ adjustedBlockGrid.numDimensions() ], adjustedBlockMax = new long[ adjustedBlockGrid.numDimensions() ];
+			final int[] adjustedBlockDimensions = new int[ adjustedBlockGrid.numDimensions() ];
+			adjustedBlockGrid.getCellDimensions( adjustedBlockGridPosition, adjustedBlockMin, adjustedBlockDimensions );
+			for ( int d = 0; d < adjustedBlockGrid.numDimensions(); ++d )
+				adjustedBlockMax[ d ] = adjustedBlockMin[ d ] + adjustedBlockDimensions[ d ] - 1;
+			final Interval adjustedBlockInterval = new FinalInterval( adjustedBlockMin, adjustedBlockMax );
+
+			final O outputType = dataTypeToImglibType( outputDataType );
+
+			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
+			final RandomAccessible< O > convertedSource;
+			if ( inputDataType == outputDataType )
+			{
+				convertedSource = ( RandomAccessible< O > ) source;
+			}
+			else
+			{
+				convertedSource = Converters.convert( source, new ClampingConverter< I, O >(
+						minInputValue, maxInputValue,
+						minOutputValue, maxOutputValue
+					), outputType.createVariable() );
+			}
+			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, adjustedBlockInterval );
+
+			// compute correct output block grid offset
+			final CellGrid outputBlockGrid = new CellGrid( dimensions, outputBlockSize );
+			final long[] outputBlockGridPosition = new long[ outputBlockGrid.numDimensions() ];
+			outputBlockGrid.getCellPosition( adjustedBlockMin, outputBlockGridPosition );
 
 			N5Utils.saveNonEmptyBlock(
 					convertedSourceInterval,

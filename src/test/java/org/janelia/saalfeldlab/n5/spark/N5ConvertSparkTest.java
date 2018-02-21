@@ -11,6 +11,7 @@ import org.janelia.saalfeldlab.n5.Bzip2Compression;
 import org.janelia.saalfeldlab.n5.DataType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.GzipCompression;
+import org.janelia.saalfeldlab.n5.Lz4Compression;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
@@ -26,6 +27,7 @@ import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.basictypeaccess.array.ArrayDataAccess;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
@@ -137,6 +139,44 @@ public class N5ConvertSparkTest
 		Assert.assertArrayEquals(
 				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 64 ), dimensions ).update( null ) ).getCurrentStorageArray(),
 				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
+			);
+	}
+
+	@Test
+	public void testAdjustedInputBlocks() throws IOException
+	{
+		final N5Writer n5 = n5Supplier.get();
+		final long[] dimensions = new long[] { 30, 30, 30 };
+
+		final short[] inputData = new short[ ( int ) Intervals.numElements( dimensions ) ];
+		for ( int i = 0; i < inputData.length; ++i )
+			inputData[ i ] = ( short ) ( i + 1 );
+
+		N5Utils.save( ArrayImgs.shorts( inputData, dimensions ), n5, datasetPath, new int[] { 6, 7, 8 }, new Lz4Compression() );
+
+		N5ConvertSpark.convert(
+				sparkContext,
+				() -> new N5FSReader( basePath ),
+				datasetPath,
+				n5Supplier,
+				convertedDatasetPath,
+				Optional.of( new int[] { 5, 3, 3 } ),
+				Optional.empty(),
+				Optional.empty(),
+				Optional.empty()
+			);
+
+		Assert.assertTrue( n5.datasetExists( convertedDatasetPath ) );
+
+		final DatasetAttributes convertedAttributes = n5.getDatasetAttributes( convertedDatasetPath );
+		Assert.assertArrayEquals( dimensions, convertedAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 5, 3, 3 }, convertedAttributes.getBlockSize() );
+		Assert.assertEquals( new Lz4Compression().getType(), convertedAttributes.getCompression().getType() );
+		Assert.assertEquals( DataType.INT16, convertedAttributes.getDataType() );
+
+		Assert.assertArrayEquals(
+				inputData,
+				( short[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new ShortType() ).update( null ) ).getCurrentStorageArray()
 			);
 	}
 
