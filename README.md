@@ -82,6 +82,7 @@ spark-local/n5-convert.py
 </details>
 
 <br/>
+
 Resaves an N5 dataset possibly changing all or some of the following dataset attributes:
 * *block size*: if omitted, the block size of the input dataset is used.
 * *compression scheme*: if omitted, the compression scheme of the input dataset is used.
