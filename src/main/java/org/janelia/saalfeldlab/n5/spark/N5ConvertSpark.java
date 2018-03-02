@@ -432,7 +432,7 @@ public class N5ConvertSpark
 	{
 		private static final long serialVersionUID = 4847292347478989514L;
 
-		@Option(name = "-ni", aliases = { "--inputN5Path" }, required = true,
+		@Option(name = "-ni", aliases = { "-n", "--inputN5Path" }, required = true,
 				usage = "Path to the input N5 container.")
 		private String n5InputPath;
 
