@@ -199,7 +199,8 @@ public class N5ConvertSpark
 					n5OutputSupplier,
 					outputDatasetPath,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue
+					minOutputValue, maxOutputValue,
+					overwriteExisting
 				);
 		}
 		else
@@ -212,7 +213,8 @@ public class N5ConvertSpark
 					n5OutputSupplier,
 					outputDatasetPath,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue
+					minOutputValue, maxOutputValue,
+					overwriteExisting
 				);
 		}
 	}
@@ -224,7 +226,8 @@ public class N5ConvertSpark
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue
+			final double minOutputValue, final double maxOutputValue,
+			final boolean overwriteExisting
 		) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
@@ -268,7 +271,15 @@ public class N5ConvertSpark
 			}
 			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
 
-			N5Utils.saveNonEmptyBlock(
+			if ( overwriteExisting )
+				N5Utils.saveBlock(
+					convertedSourceInterval,
+					n5OutputSupplier.get(),
+					outputDatasetPath,
+					outputBlockGridPosition
+				);
+			else
+				N5Utils.saveNonEmptyBlock(
 					convertedSourceInterval,
 					n5OutputSupplier.get(),
 					outputDatasetPath,
@@ -285,7 +296,8 @@ public class N5ConvertSpark
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue
+			final double minOutputValue, final double maxOutputValue,
+			boolean overwriteExisting
 		) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
@@ -340,7 +352,15 @@ public class N5ConvertSpark
 			final long[] outputBlockGridPosition = new long[ outputBlockGrid.numDimensions() ];
 			outputBlockGrid.getCellPosition( adjustedBlockMin, outputBlockGridPosition );
 
-			N5Utils.saveNonEmptyBlock(
+			if ( overwriteExisting )
+				N5Utils.saveBlock(
+					convertedSourceInterval,
+					n5OutputSupplier.get(),
+					outputDatasetPath,
+					outputBlockGridPosition
+				);
+			else
+				N5Utils.saveNonEmptyBlock(
 					convertedSourceInterval,
 					n5OutputSupplier.get(),
 					outputDatasetPath,
@@ -400,7 +420,8 @@ public class N5ConvertSpark
 					Optional.ofNullable( parsedArgs.getBlockSize() ),
 					Optional.ofNullable( parsedArgs.getCompression() ),
 					Optional.ofNullable( parsedArgs.getDataType() ),
-					Optional.ofNullable( parsedArgs.getValueRange() )
+					Optional.ofNullable( parsedArgs.getValueRange() ),
+					parsedArgs.force
 				);
 		}
 
@@ -448,6 +469,9 @@ public class N5ConvertSpark
 				usage = "Maximum value of the input range to be used for the conversion (default is max type value for integer types, or 1 for real types).")
 		private Double maxValue;
 
+		@Option(name = "-f", aliases = { "--force" }, required = false, usage = "Will overwrite existing output dataset if specified.")
+		private Boolean force;
+
 		private int[] blockSize;
 		private Compression compression;
 
@@ -486,6 +510,8 @@ public class N5ConvertSpark
 
 				if ( Objects.isNull( minValue ) != Objects.isNull( maxValue ) )
 					throw new IllegalArgumentException( "minValue and maxValue should be either both specified or omitted." );
+
+				this.force = Optional.ofNullable( this.force ).orElse( false );
 
 				parsedSuccessfully = true;
 			}
