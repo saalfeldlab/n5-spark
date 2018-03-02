@@ -97,7 +97,6 @@ public class N5ConvertSpark
 		}
 	}
 
-	@SuppressWarnings( "unchecked" )
 	public static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5InputSupplier,
@@ -109,6 +108,31 @@ public class N5ConvertSpark
 			final Optional< DataType > dataTypeOptional,
 			final Optional< Pair< Double, Double > > valueRangeOptional ) throws IOException
 	{
+		convert(
+				sparkContext,
+				n5InputSupplier,
+				inputDatasetPath,
+				n5OutputSupplier,
+				outputDatasetPath,
+				blockSizeOptional,
+				compressionOptional,
+				dataTypeOptional,
+				valueRangeOptional,
+				false );
+	}
+
+	public static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convert(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5InputSupplier,
+			final String inputDatasetPath,
+			final N5WriterSupplier n5OutputSupplier,
+			final String outputDatasetPath,
+			final Optional< int[] > blockSizeOptional,
+			final Optional< Compression > compressionOptional,
+			final Optional< DataType > dataTypeOptional,
+			final Optional< Pair< Double, Double > > valueRangeOptional,
+			boolean overwriteExisting ) throws IOException
+	{
 		final N5Reader n5Input = n5InputSupplier.get();
 		final DatasetAttributes inputAttributes = n5Input.getDatasetAttributes( inputDatasetPath );
 
@@ -117,7 +141,7 @@ public class N5ConvertSpark
 		final DataType inputDataType = inputAttributes.getDataType();
 
 		final N5Writer n5Output = n5OutputSupplier.get();
-		if ( n5Output.datasetExists( outputDatasetPath ) )
+		if ( n5Output.datasetExists( outputDatasetPath ) && !overwriteExisting )
 			throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
 
 		final int[] outputBlockSize = blockSizeOptional.isPresent() ? blockSizeOptional.get() : inputBlockSize;
