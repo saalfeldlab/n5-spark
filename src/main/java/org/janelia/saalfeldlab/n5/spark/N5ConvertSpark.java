@@ -131,7 +131,7 @@ public class N5ConvertSpark
 			final Optional< Compression > compressionOptional,
 			final Optional< DataType > dataTypeOptional,
 			final Optional< Pair< Double, Double > > valueRangeOptional,
-			boolean overwriteExisting ) throws IOException
+			final boolean overwriteExisting ) throws IOException
 	{
 		final N5Reader n5Input = n5InputSupplier.get();
 		final DatasetAttributes inputAttributes = n5Input.getDatasetAttributes( inputDatasetPath );
@@ -219,6 +219,7 @@ public class N5ConvertSpark
 		}
 	}
 
+	@SuppressWarnings( "unchecked" )
 	private static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convertParallelizingOverOutputBlocks(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5InputSupplier,
@@ -227,8 +228,7 @@ public class N5ConvertSpark
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
 			final double minOutputValue, final double maxOutputValue,
-			final boolean overwriteExisting
-		) throws IOException
+			final boolean overwriteExisting ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
@@ -289,6 +289,7 @@ public class N5ConvertSpark
 		} );
 	}
 
+	@SuppressWarnings( "unchecked" )
 	private static < I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > void convertParallelizingOverAdjustedInputBlocks(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5InputSupplier,
@@ -297,8 +298,7 @@ public class N5ConvertSpark
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
 			final double minOutputValue, final double maxOutputValue,
-			boolean overwriteExisting
-		) throws IOException
+			final boolean overwriteExisting ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
