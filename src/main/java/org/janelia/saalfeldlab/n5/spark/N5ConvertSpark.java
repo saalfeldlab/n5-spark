@@ -141,7 +141,7 @@ public class N5ConvertSpark
 		final DataType inputDataType = inputAttributes.getDataType();
 
 		final N5Writer n5Output = n5OutputSupplier.get();
-		if ( n5Output.datasetExists( outputDatasetPath ) && !overwriteExisting )
+		if ( !overwriteExisting && n5Output.datasetExists( outputDatasetPath ) )
 			throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
 
 		final int[] outputBlockSize = blockSizeOptional.isPresent() ? blockSizeOptional.get() : inputBlockSize;
