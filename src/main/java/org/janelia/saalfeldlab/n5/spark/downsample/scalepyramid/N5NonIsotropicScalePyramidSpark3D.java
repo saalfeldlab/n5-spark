@@ -54,7 +54,9 @@ public class N5NonIsotropicScalePyramidSpark3D
 				final double[] pixelResolution )
 		{
 			final double ratioZtoXY = getPixelResolutionZtoXY( pixelResolution );
-			isPowerOfTwo = Util.isApproxEqual( ratioZtoXY, ( int ) ratioZtoXY, EPSILON ) && ( ( int ) ratioZtoXY & ( ( int ) ratioZtoXY - 1 ) ) == 0;
+			isPowerOfTwo =
+					Util.isApproxEqual( ratioZtoXY, Math.round( ratioZtoXY ), EPSILON )
+					&& ( Math.round( ratioZtoXY ) & ( Math.round( ratioZtoXY ) - 1 ) ) == 0;
 
 			scalesMetadata = new ArrayList<>();
 			scalesMetadata.add( new NonIsotropicMetadata( fullScaleDimensions.clone(), fullScaleCellSize.clone(), new int[] { 1, 1, 1 } ) );
