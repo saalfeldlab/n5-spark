@@ -31,6 +31,8 @@ import net.imglib2.view.Views;
 
 public class N5NonIsotropicScalePyramidSpark3DTest
 {
+	static private final double EPSILON = 1e-10;
+
 	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
 	static private final String datasetPath = "data";
 
@@ -72,7 +74,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		NonIsotropicScalePyramidMetadata scalePyramidMetadata;
 		NonIsotropicMetadata scaleMetadata;
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 8 }, null );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 8 }, null, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -103,7 +105,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 64, 64, 64 }, scaleMetadata.downsamplingFactors );
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 } );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -134,7 +136,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 64, 64, 34 }, scaleMetadata.downsamplingFactors );
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 } );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -165,7 +167,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		Assert.assertArrayEquals( new int[] { 8, 8, 6 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 64, 64, 21 }, scaleMetadata.downsamplingFactors );
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 2 }, new double[] { 0.5, 0.5, 2 } );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 2 }, new double[] { 0.5, 0.5, 2 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -196,7 +198,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		Assert.assertArrayEquals( new int[] { 8, 8, 8 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 64, 64, 16 }, scaleMetadata.downsamplingFactors );
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 } );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 }, false );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -247,7 +249,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		Assert.assertArrayEquals( new int[] { 256, 256, 208 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 2048, 2048, 205 }, scaleMetadata.downsamplingFactors );
 
-		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 } );
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 }, false );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -300,7 +302,78 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	}
 
 	@Test
-	public void testIsotropicDownsampling() throws IOException
+	public void testClosestPowerOfTwo()
+	{
+		Assert.assertEquals( 4, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 5 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 6 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 7 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 8 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 9 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 10 } ), EPSILON );
+		Assert.assertEquals( 8, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 11 } ), EPSILON );
+		Assert.assertEquals( 16, NonIsotropicScalePyramidMetadata.getClosestPowerOfTwo( new double[] { 1, 1, 12 } ), EPSILON );
+	}
+
+	@Test
+	public void testClosestPowerOfTwoMetadata()
+	{
+		NonIsotropicScalePyramidMetadata scalePyramidMetadata;
+		NonIsotropicMetadata scaleMetadata;
+
+		scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 32 }, new double[] { 1, 1, 10 }, true );
+		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
+		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 32 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 1 );
+		Assert.assertArrayEquals( new long[] { 1024, 1024, 2048 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 2 );
+		Assert.assertArrayEquals( new long[] { 512, 512, 2048 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 3 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 2048 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 4 );
+		Assert.assertArrayEquals( new long[] { 128, 128, 1024 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 2 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 5 );
+		Assert.assertArrayEquals( new long[] { 64, 64, 512 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 4 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 6 );
+		Assert.assertArrayEquals( new long[] { 32, 32, 256 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 8 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 7 );
+		Assert.assertArrayEquals( new long[] { 16, 16, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 128, 128, 16 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 8 );
+		Assert.assertArrayEquals( new long[] { 8, 8, 64 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 256, 256, 32 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 9 );
+		Assert.assertArrayEquals( new long[] { 4, 4, 32 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 512, 512, 64 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 10 );
+		Assert.assertArrayEquals( new long[] { 2, 2, 16 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1024, 1024, 128 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 11 );
+		Assert.assertArrayEquals( new long[] { 1, 1, 8 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 256, 256, 256 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 2048, 2048, 256 }, scaleMetadata.downsamplingFactors );
+	}
+
+	@Test
+	public void testNonIsotropicDownsampling() throws IOException
 	{
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 2, 2, 1 } );
@@ -309,7 +382,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 				sparkContext,
 				n5Supplier,
 				datasetPath,
-				new double[] { 0.1, 0.1, 0.2 }
+				new double[] { 0.1, 0.1, 0.2 },
+				false
 			);
 
 		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
@@ -337,6 +411,44 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		cleanup( n5 );
 	}
 
+	@Test
+	public void testNonIsotropicDownsamplingClosestPowerOfTwo() throws IOException
+	{
+		final N5Writer n5 = n5Supplier.get();
+		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 2, 2, 1 } );
+
+		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark3D.downsampleNonIsotropicScalePyramid(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				new double[] { 0.1, 0.1, 0.2 },
+				true
+			);
+
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
+		Assert.assertArrayEquals( new String[] { downsampledIntermediateDatasetPath, downsampledLastDatasetPath }, downsampledDatasets.toArray( new String[ 0 ] ) );
+
+		Assert.assertTrue(
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
+				n5.datasetExists( datasetPath ) &&
+				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
+				n5.datasetExists( downsampledLastDatasetPath ) );
+
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 2 }, downsampledAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, downsampledAttributes.getBlockSize() );
+
+		Assert.assertArrayEquals(
+				new int[] {
+						( int ) Util.round( ( 32 * 33 / 2 ) / 32. ),
+						( int ) Util.round( ( 32 * 33 / 2 + 32 * 32) / 32. ),
+				},
+				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) )
+			);
+
+		cleanup( n5 );
+	}
 
 	private void createDataset( final N5Writer n5, final long[] dimensions, final int[] blockSize ) throws IOException
 	{
