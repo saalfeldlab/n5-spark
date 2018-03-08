@@ -99,7 +99,7 @@ The output value range is derived from the output data type for integer types, o
 
 Generates a single downsampled export:
 
-* <b>N-dimensional downsampling</b>: performs a single downsampling step with given factors.
+* <b>N-dimensional downsampling</b>: performs a single downsampling step with given factors. The downsampling factors parameter is formatted as a comma-separated list, for example, `2,2,2`.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -126,7 +126,8 @@ Generates a single downsampled export:
   ```
   </details>
   
-* <b>N-dimensional label downsampling</b>: performs a single downsampling step with given factors. The most frequent value is used instead of averaging. In case of multiple values with the same frequency, the smallest value among them is selected.
+* <b>N-dimensional label downsampling</b>: performs a single downsampling step with given factors. The downsampling factors parameter is formatted as a comma-separated list, for example, `2,2,2`.<br/>
+The most frequent value is used instead of averaging. In case of multiple values with the same frequency, the smallest value among them is selected.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -153,7 +154,7 @@ Generates a single downsampled export:
   ```
   </details>
 
-* <b>N-dimensional offset downsampling</b>: performs a single downsampling step with given factors and offset.
+* <b>N-dimensional offset downsampling</b>: performs a single downsampling step with given factors and offset. The downsampling factors and offset parameters are formatted as comma-separated lists, for example, `2,2,2`.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -184,7 +185,7 @@ Generates a single downsampled export:
 
 Generates a scale pyramid:
 
-* <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid.
+* <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid, and is formatted as a comma-separated list, for example, `2,2,2`.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -209,7 +210,7 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>N-dimensional offset scale pyramid</b>: generates a scale pyramid with given factors and half-pixel offset applied at every scale level. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid.
+* <b>N-dimensional offset scale pyramid</b>: generates a scale pyramid with given factors and half-pixel offset applied at every scale level. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid, and is formatted as a comma-separated list, for example, `2,2,2`.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
