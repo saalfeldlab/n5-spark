@@ -2,7 +2,8 @@
 A small library for processing N5 datasets in parallel using Apache Spark cluster.
 
 Supported operations:
-* downsampling (isotropic/non-isotropic)
+* resaving using different blocksize / datatype / compression
+* downsampling (isotropic / non-isotropic)
 * max intensity projection
 * conversion to TIFF series
 * parallel remove
