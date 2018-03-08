@@ -184,7 +184,7 @@ Generates a single downsampled export:
 
 Generates a scale pyramid:
 
-* <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors.
+* <b>N-dimensional scale pyramid</b>: generates a scale pyramid with given factors. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -209,7 +209,7 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>N-dimensional offset scale pyramid</b>: generates a scale pyramid with given factors and half-pixel offset applied at every scale level.
+* <b>N-dimensional offset scale pyramid</b>: generates a scale pyramid with given factors and half-pixel offset applied at every scale level. The downsampling factors parameter specifies relative scaling between any two consecutive scale levels in the output scale pyramid.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -236,7 +236,7 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y.
+* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with power of two downsampling in X/Y and adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
