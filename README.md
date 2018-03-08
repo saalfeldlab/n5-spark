@@ -61,6 +61,7 @@ spark-janelia/n5-convert.py
 [-t <output data type>]
 [-min <min value of input data range>]
 [-max <max value of input data range>]
+[--force to overwrite output dataset if already exists]
 ```
 </details>
 
@@ -78,6 +79,7 @@ spark-local/n5-convert.py
 [-t <output data type>]
 [-min <min value of input data range>]
 [-max <max value of input data range>]
+[--force to overwrite output dataset if already exists]
 ```
 </details>
 
