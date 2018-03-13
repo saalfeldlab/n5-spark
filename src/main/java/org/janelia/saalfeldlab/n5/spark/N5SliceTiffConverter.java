@@ -1,7 +1,9 @@
 package org.janelia.saalfeldlab.n5.spark;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -11,7 +13,9 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
-import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
+import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -21,16 +25,14 @@ import com.esotericsoftware.kryo.Kryo;
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
-import net.imglib2.RandomAccess;
+import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.cache.img.CachedCellImg;
 import net.imglib2.img.cell.Cell;
 import net.imglib2.img.cell.CellGrid;
-import net.imglib2.img.cell.CellRandomAccess;
 import net.imglib2.img.cell.LazyCellImg.LazyCells;
 import net.imglib2.img.imageplus.ImagePlusImg;
 import net.imglib2.img.imageplus.ImagePlusImgFactory;
-import net.imglib2.iterator.IntervalIterator;
 import net.imglib2.type.NativeType;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
@@ -50,6 +52,8 @@ public class N5SliceTiffConverter
 	 * 			Path to the output folder for saving resulting TIFF series
 	 * @param compression
 	 * 			TIFF compression to be used for the resulting TIFF series
+	 * @param sliceDimension
+	 * 			Dimension to slice over
 	 * @throws IOException
 	 */
 	public static < T extends NativeType< T > > void convertToSliceTiff(
@@ -57,48 +61,73 @@ public class N5SliceTiffConverter
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
 			final String outputPath,
-			final TiffCompression compression ) throws IOException
+			final TiffCompression compression,
+			final int sliceDimension ) throws IOException
 	{
 		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
 		final long[] dimensions = attributes.getDimensions();
 
-		final List< Long > zCoords = LongStream.range( 0, dimensions[ 2 ] ).boxed().collect( Collectors.toList() );
+		if ( dimensions.length != 3 )
+			throw new IllegalArgumentException( "Conversion to slice TIFF series is supported only for 3D datasets" );
+
+		final int[] sliceDimensionMap = new int[ 2 ];
+		for ( int i = 0, d = 0; d < 3; ++d )
+			if ( d != sliceDimension )
+				sliceDimensionMap[ i++ ] = d;
+		final long[] sliceDimensions = new long[] { dimensions[ sliceDimensionMap[ 0 ] ], dimensions[ sliceDimensionMap[ 1 ] ] };
+
+		final List< Long > sliceCoords = LongStream.range( 0, dimensions[ sliceDimension ] ).boxed().collect( Collectors.toList() );
 
 		Paths.get( outputPath ).toFile().mkdirs();
 
-		sparkContext.parallelize( zCoords, zCoords.size() ).foreach( z ->
+		sparkContext.parallelize( sliceCoords, sliceCoords.size() ).foreach( slice ->
 			{
 				final N5Reader n5Local = n5Supplier.get();
 				final CachedCellImg< T, ? > cellImg = N5SparkUtils.openWithBoundedCache( n5Local, datasetPath, 1 );
-				final CellRandomAccess< T, ? extends Cell< ? > > cellImgRandomAccess = cellImg.randomAccess();
 				final CellGrid cellGrid = cellImg.getCellGrid();
-				final long[] zCellPos = new long[ cellImg.numDimensions() ];
-				cellGrid.getCellPosition( new long[] { 0, 0, z }, zCellPos );
+				final long[] slicePos = new long[ cellImg.numDimensions() ], cellPos = new long[ cellImg.numDimensions() ];
+				slicePos[ sliceDimension ] = slice;
+				cellGrid.getCellPosition( slicePos, cellPos );
 
-				final ImagePlusImg< T, ? > sliceTarget = new ImagePlusImgFactory< T >().create( new long[] { dimensions[ 0 ], dimensions[ 1 ] }, Util.getTypeFromInterval( cellImg ) );
-				final RandomAccessibleInterval< T > target = Views.translate( Views.stack( sliceTarget ), new long[] { 0, 0, z } );
-				final RandomAccess< T > targetRandomAccess = target.randomAccess();
+				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory< T >().create( sliceDimensions, Util.getTypeFromInterval( cellImg ) );
 
 				final LazyCells< ? extends Cell< ? > > cells = cellImg.getCells();
-				final RandomAccessibleInterval< ? extends Cell< ? > > sliceCells = Views.interval( cells, new FinalInterval( new long[] { cells.min( 0 ), cells.min( 1 ), zCellPos[ 2 ] }, new long[] { cells.max( 0 ), cells.max( 1 ), zCellPos[ 2 ] } ) );
+				final long[] cellGridMin = new long[ cellImg.numDimensions() ], cellGridMax = new long[ cellImg.numDimensions() ];
+				cells.min( cellGridMin );
+				cells.max( cellGridMax );
+				cellGridMin[ sliceDimension ] = cellGridMax[ sliceDimension ] = cellPos[ sliceDimension ];
+				final Interval cellGridInterval = new FinalInterval( cellGridMin, cellGridMax );
+
+				final RandomAccessibleInterval< ? extends Cell< ? > > sliceCells = Views.interval( cells, cellGridInterval );
 				final Cursor< ? extends Cell< ? > > sliceCellsCursor = Views.iterable( sliceCells ).cursor();
+
+				final long[] cellMin = new long[ cellImg.numDimensions() ], cellMax = new long[ cellImg.numDimensions() ];
+				final int[] cellDimensions = new int[ cellImg.numDimensions() ];
 
 				while ( sliceCellsCursor.hasNext() )
 				{
 					final Cell< ? > cell = sliceCellsCursor.next();
-					final IntervalIterator cellSliceIterator = IntervalIterator.create( new FinalInterval( new long[] { cell.min( 0 ), cell.min( 1 ), z }, new long[] { cell.min( 0 ) + cell.dimension( 0 ) - 1, cell.min( 1 ) + cell.dimension( 1 ) - 1, z } ) );
-					while ( cellSliceIterator.hasNext() )
-					{
-						cellSliceIterator.fwd();
-						cellImgRandomAccess.setPosition( cellSliceIterator );
-						targetRandomAccess.setPosition( cellSliceIterator );
-						targetRandomAccess.get().set( cellImgRandomAccess.get() );
-					}
+					cell.min( cellMin );
+					cell.dimensions( cellDimensions );
+					for ( int d = 0; d < cellImg.numDimensions(); ++d )
+						cellMax[ d ] = cellMin[ d ] + cellDimensions[ d ] - 1;
+					cellMin[ sliceDimension ] = cellMax[ sliceDimension ] = slice;
+					final Interval sourceInterval = new FinalInterval( cellMin, cellMax );
+
+					final Interval targetInterval = new FinalInterval(
+							new long[] { cellMin[ sliceDimensionMap[ 0 ] ], cellMin[ sliceDimensionMap[ 1 ] ] },
+							new long[] { cellMax[ sliceDimensionMap[ 0 ] ], cellMax[ sliceDimensionMap[ 1 ] ] }
+						);
+
+					final Cursor< T > sourceCursor = Views.flatIterable( Views.interval( cellImg, sourceInterval ) ).cursor();
+					final Cursor< T > targetCursor = Views.flatIterable( Views.interval( target, targetInterval ) ).cursor();
+					while ( sourceCursor.hasNext() || targetCursor.hasNext() )
+						targetCursor.next().set( sourceCursor.next() );
 				}
 
-				final ImagePlus sliceImp = sliceTarget.getImagePlus();
-				final String outputImgPath = Paths.get( outputPath, z + ".tif" ).toString();
+				final ImagePlus sliceImp = target.getImagePlus();
+				final String outputImgPath = Paths.get( outputPath, slice + ".tif" ).toString();
 				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
@@ -122,30 +151,39 @@ public class N5SliceTiffConverter
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
 					parsedArgs.getOutputPath(),
-					parsedArgs.getTiffCompression()
+					parsedArgs.getTiffCompression(),
+					parsedArgs.getSliceDimension()
 				);
 		}
 
 		System.out.println( System.lineSeparator() + "Done" );
 	}
 
-	private static class Arguments
+	private static class Arguments implements Serializable
 	{
+		private static final long serialVersionUID = -2719585735604464792L;
+
+		private static final String[] DIMENSION_STR = new String[] { "x", "y", "z" };
+
 		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
-				usage = "Path to an N5 container.")
+				usage = "Path to an N5 container")
 		private String n5Path;
 
 		@Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
-				usage = "Path to an input dataset within the N5 container (e.g. data/group/s0).")
+				usage = "Path to an input dataset within the N5 container (e.g. data/group/s0)")
 		private String inputDatasetPath;
 
 		@Option(name = "-o", aliases = { "--outputPath" }, required = true,
-				usage = "Output path for storing slice TIFF series.")
+				usage = "Output path for storing slice TIFF series")
 		private String outputPath;
 
 		@Option(name = "-c", aliases = { "--tiffCompression" }, required = false,
-				usage = "Tiff compression (LZW or NONE).")
+				usage = "Tiff compression")
 		private TiffCompression tiffCompression = TiffCompression.LZW;
+
+		@Option(name = "-d", aliases = { "--sliceDimension" }, required = false,
+				usage = "Dimension to slice over as a string")
+		private String sliceDimensionStr = "z";
 
 		private boolean parsedSuccessfully = false;
 
@@ -170,5 +208,13 @@ public class N5SliceTiffConverter
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputPath() { return outputPath; }
 		public TiffCompression getTiffCompression() { return tiffCompression; }
+
+		public int getSliceDimension()
+		{
+			for ( int d = 0; d < DIMENSION_STR.length; ++d )
+				if ( DIMENSION_STR[ d ].equalsIgnoreCase( sliceDimensionStr ) )
+					return d;
+			throw new IllegalArgumentException( "Illegal slice dimension value. Possible values are: " + Arrays.toString( DIMENSION_STR ) );
+		}
 	}
 }

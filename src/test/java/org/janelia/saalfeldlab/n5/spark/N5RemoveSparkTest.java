@@ -36,7 +36,7 @@ public class N5RemoveSparkTest
 
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local[*]" )
-				.setAppName( "N5DownsamplingTest" )
+				.setAppName( "N5RemoveTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
 	}
@@ -53,7 +53,7 @@ public class N5RemoveSparkTest
 
 	private void cleanup( final N5Writer n5 ) throws IOException
 	{
-		n5.remove( "" );
+		Assert.assertTrue( n5.remove() );
 	}
 
 	@Test

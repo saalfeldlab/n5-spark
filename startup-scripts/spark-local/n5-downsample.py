@@ -4,9 +4,9 @@ import os
 import sys
 import subprocess
 
-curr_script_dir = os.path.dirname(os.path.realpath(__file__))
-base_folder = os.path.dirname(os.path.dirname(curr_script_dir))
-bin_file = os.path.join('target', 'n5-spark-1.0.1-SNAPSHOT.jar')
-bin_path = os.path.join(base_folder, bin_file)
+sys.dont_write_bytecode = True
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from jar_path_util import get_jar_path
+bin_path = get_jar_path()
 
-subprocess.call(['java', '-Dspark.master=local[*]', '-cp', bin_path, 'org.janelia.saalfeldlab.n5.spark.N5DownsamplingSpark'] + sys.argv[1:])
+subprocess.call(['java', '-Dspark.master=local[*]', '-cp', bin_path, 'org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark'] + sys.argv[1:])

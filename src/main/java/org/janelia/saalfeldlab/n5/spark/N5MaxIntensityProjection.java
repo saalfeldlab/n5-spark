@@ -1,6 +1,7 @@
 package org.janelia.saalfeldlab.n5.spark;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,7 +15,10 @@ import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
-import org.janelia.saalfeldlab.n5.spark.TiffUtils.TiffCompression;
+import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -316,8 +320,10 @@ public class N5MaxIntensityProjection
 		System.out.println( System.lineSeparator() + "Done" );
 	}
 
-	private static class Arguments
+	private static class Arguments implements Serializable
 	{
+		private static final long serialVersionUID = 4847292347478989514L;
+
 		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
 				usage = "Path to an N5 container.")
 		private String n5Path;
@@ -361,18 +367,6 @@ public class N5MaxIntensityProjection
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputPath() { return outputPath; }
 		public TiffCompression getTiffCompression() { return tiffCompression; }
-		public int[] getMipCellsStep() { return parseIntArray( mipCellsStep ); }
-
-		private static int[] parseIntArray( final String str )
-		{
-			if ( str == null )
-				return null;
-
-			final String[] tokens = str.split( "," );
-			final int[] values = new int[ tokens.length ];
-			for ( int i = 0; i < values.length; i++ )
-				values[ i ] = Integer.parseInt( tokens[ i ] );
-			return values;
-		}
+		public int[] getMipCellsStep() { return CmdUtils.parseIntArray( mipCellsStep ); }
 	}
 }
