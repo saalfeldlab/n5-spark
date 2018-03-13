@@ -59,7 +59,7 @@ public class N5ConvertSpark
 {
 	private static final int MAX_PARTITIONS = 15000;
 
-	private static class ClampingConverter< I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > implements Converter< I, O >
+	static class ClampingConverter< I extends NativeType< I > & RealType< I >, O extends NativeType< O > & RealType< O > > implements Converter< I, O >
 	{
 		private final double minInputValue, maxInputValue;
 		private final double minOutputValue, maxOutputValue;

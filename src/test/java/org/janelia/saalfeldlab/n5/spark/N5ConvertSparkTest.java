@@ -18,6 +18,7 @@ import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.RawCompression;
 import org.janelia.saalfeldlab.n5.XzCompression;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.N5ConvertSpark.ClampingConverter;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,6 +34,8 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.type.numeric.integer.ShortType;
+import net.imglib2.type.numeric.integer.UnsignedIntType;
+import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.ValuePair;
@@ -74,6 +77,21 @@ public class N5ConvertSparkTest
 	private void cleanup( final N5Writer n5 ) throws IOException
 	{
 		Assert.assertTrue( n5.remove() );
+	}
+
+	@Test
+	public void testTypeConversion()
+	{
+		final ClampingConverter< DoubleType, UnsignedIntType > converter = new ClampingConverter<>( -1.0, 1.0, 0, 4 );
+		Assert.assertEquals( 0, getConvertedValue( converter, -1.0 ) );
+		Assert.assertEquals( 1, getConvertedValue( converter, -0.75 ) );
+		Assert.assertEquals( 1, getConvertedValue( converter, -0.5 ) );
+		Assert.assertEquals( 2, getConvertedValue( converter, -0.25 ) );
+		Assert.assertEquals( 2, getConvertedValue( converter, 0.0 ) );
+		Assert.assertEquals( 3, getConvertedValue( converter, 0.25 ) );
+		Assert.assertEquals( 3, getConvertedValue( converter, 0.5 ) );
+		Assert.assertEquals( 4, getConvertedValue( converter, 0.75 ) );
+		Assert.assertEquals( 4, getConvertedValue( converter, 1.0 ) );
 	}
 
 	@Test
@@ -197,5 +215,12 @@ public class N5ConvertSparkTest
 		while ( raiCursor.hasNext() || imgCursor.hasNext() )
 			imgCursor.next().setReal( raiCursor.next().getRealDouble() );
 		return img;
+	}
+
+	private int getConvertedValue( final ClampingConverter< DoubleType, UnsignedIntType > converter, final double value )
+	{
+		final UnsignedIntType convertedValue = new UnsignedIntType();
+		converter.convert( new DoubleType( value ), convertedValue );
+		return convertedValue.getInt();
 	}
 }
