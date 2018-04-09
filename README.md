@@ -237,7 +237,7 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with power of two downsampling in X/Y and adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y.
+* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with power of two downsampling in X/Y and adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y. The pixel resolution parameter is formatted as a comma-separated list, for example, `0.097,0.097,0.18`.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
