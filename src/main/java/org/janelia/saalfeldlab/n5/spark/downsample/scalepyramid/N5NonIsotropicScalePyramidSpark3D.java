@@ -106,6 +106,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 	}
 
 	private static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
+	private static final String PIXEL_RESOLUTION_ATTRIBUTE_KEY = "pixelResolution";
 
 	/**
 	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
@@ -266,6 +267,8 @@ public class N5NonIsotropicScalePyramidSpark3D
 			}
 
 			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleMetadata.downsamplingFactors );
+			n5.setAttribute( outputDatasetPath, PIXEL_RESOLUTION_ATTRIBUTE_KEY, pixelResolution );
+
 			downsampledDatasets.add( outputDatasetPath );
 		}
 
