@@ -43,10 +43,18 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 	static class NonIsotropicScalePyramidMetadata
 	{
+		static enum MainDimension
+		{
+			XY,
+			Z
+		}
+
 		private static final double EPSILON = 1e-10;
 
 		public final List< NonIsotropicMetadata > scalesMetadata;
+		public final MainDimension mainDimension;
 		public final boolean isPowerOfTwo;
+		private final double pixelResolutionRatio;
 
 		public NonIsotropicScalePyramidMetadata(
 				final long[] fullScaleDimensions,
@@ -54,42 +62,72 @@ public class N5NonIsotropicScalePyramidSpark3D
 				final double[] pixelResolution,
 				final boolean isPowerOfTwo )
 		{
-			final double ratioZtoXY = getPixelResolutionZtoXY( pixelResolution );
+			// determine the main dimension which is the one with better resolution
+			final double ratioZtoXY = getPixelResolutionRatioZtoXY( pixelResolution );
+			if ( ratioZtoXY > 1 )
+			{
+				mainDimension = MainDimension.XY;
+				pixelResolutionRatio = ratioZtoXY;
+			}
+			else
+			{
+				mainDimension = MainDimension.Z;
+				pixelResolutionRatio = 1. / ratioZtoXY;
+			}
+
 			this.isPowerOfTwo = isPowerOfTwo || (
-					Util.isApproxEqual( ratioZtoXY, Math.round( ratioZtoXY ), EPSILON )
-					&& ( Math.round( ratioZtoXY ) & ( Math.round( ratioZtoXY ) - 1 ) ) == 0
+					Util.isApproxEqual( pixelResolutionRatio, Math.round( pixelResolutionRatio ), EPSILON )
+					&& ( Math.round( pixelResolutionRatio ) & ( Math.round( pixelResolutionRatio ) - 1 ) ) == 0
 				);
+
 			scalesMetadata = new ArrayList<>();
-			init( fullScaleDimensions, fullScaleCellSize, ratioZtoXY );
+			init( fullScaleDimensions, fullScaleCellSize, pixelResolution );
 		}
 
 		private void init(
 				final long[] fullScaleDimensions,
 				final int[] fullScaleCellSize,
-				final double ratioZtoXY )
+				final double[] pixelResolution )
 		{
 			scalesMetadata.add( new NonIsotropicMetadata( fullScaleDimensions.clone(), fullScaleCellSize.clone(), new int[] { 1, 1, 1 } ) );
 			for ( int scale = 1; ; ++scale )
 			{
-				final int xyDownsamplingFactor = 1 << scale;
-				final double isotropicScaling = xyDownsamplingFactor / ratioZtoXY;
-				final int zDownsamplingFactor = isPowerOfTwo ? getNearestPowerOfTwo( isotropicScaling ) : Math.max( 1, ( int ) Math.round( isotropicScaling ) );
-				final int[] downsamplingFactors = new int[] { xyDownsamplingFactor, xyDownsamplingFactor, zDownsamplingFactor };
+				final int mainDownsamplingFactor = 1 << scale;
+				final double isotropicScaling = mainDownsamplingFactor / pixelResolutionRatio;
+				final int dependentDownsamplingFactor = isPowerOfTwo ? getNearestPowerOfTwo( isotropicScaling ) : Math.max( 1, ( int ) Math.round( isotropicScaling ) );
+				final int[] downsamplingFactors;
+				if ( mainDimension == MainDimension.XY )
+					downsamplingFactors = new int[] { mainDownsamplingFactor, mainDownsamplingFactor, dependentDownsamplingFactor };
+				else
+					downsamplingFactors = new int[] { dependentDownsamplingFactor, dependentDownsamplingFactor, mainDownsamplingFactor };
 
 				final long[] downsampledDimensions = new long[ fullScaleDimensions.length ];
 				for ( int d = 0; d < downsampledDimensions.length; ++d )
 					downsampledDimensions[ d ] = fullScaleDimensions[ d ] / downsamplingFactors[ d ];
-
 				if ( Arrays.stream( downsampledDimensions ).min().getAsLong() < 1 )
 					break;
 
-				final int fullScaleOptimalCellSize = ( int ) Math.round( Math.max( fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ] ) / ratioZtoXY );
-				final int zOptimalCellSize = ( int ) Math.round( ( long ) fullScaleOptimalCellSize * xyDownsamplingFactor / ( double ) zDownsamplingFactor );
-				final int zPreviousCellSize = scalesMetadata.get( scale - 1 ).cellSize[ 2 ];
-				final int zCellSize = ( int ) Math.round( zOptimalCellSize / ( double ) zPreviousCellSize ) * zPreviousCellSize;
-				final int zMaxCellSize = Math.max( ( int ) Math.round( fullScaleOptimalCellSize * ratioZtoXY ), Math.max( fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ] ) );
-				final int zAdjustedCellSize = Math.min( zCellSize, ( zMaxCellSize / zPreviousCellSize ) * zPreviousCellSize );
-				final int[] downsampledCellSize = new int[] { fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ], zAdjustedCellSize };
+				final int mainCellSize, dependentPreviousCellSize;
+				if ( mainDimension == MainDimension.XY )
+				{
+					mainCellSize = Math.max( fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ] );
+					dependentPreviousCellSize = scalesMetadata.get( scale - 1 ).cellSize[ 2 ];
+				}
+				else
+				{
+					mainCellSize = fullScaleCellSize[ 2 ];
+					dependentPreviousCellSize = Math.max( scalesMetadata.get( scale - 1 ).cellSize[ 0 ], scalesMetadata.get( scale - 1 ).cellSize[ 1 ] );
+				}
+				final int dependentFullScaleOptimalCellSize = ( int ) Math.round( mainCellSize / pixelResolutionRatio );
+				final int dependentOptimalCellSize = ( int ) Math.round( ( long ) dependentFullScaleOptimalCellSize * mainDownsamplingFactor / ( double ) dependentDownsamplingFactor );
+				final int dependentMultipleCellSize = ( int ) Math.round( dependentOptimalCellSize / ( double ) dependentPreviousCellSize ) * dependentPreviousCellSize;
+				final int dependentMaxCellSize = Math.max( ( int ) Math.round( dependentFullScaleOptimalCellSize * pixelResolutionRatio ), mainCellSize );
+				final int dependentAdjustedCellSize = Math.min( dependentMultipleCellSize, ( dependentMaxCellSize / dependentPreviousCellSize ) * dependentPreviousCellSize );
+				final int[] downsampledCellSize;
+				if ( mainDimension == MainDimension.XY )
+					downsampledCellSize = new int[] { fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ], dependentAdjustedCellSize };
+				else
+					downsampledCellSize = new int[] { dependentAdjustedCellSize, dependentAdjustedCellSize, fullScaleCellSize[ 2 ] };
 
 				scalesMetadata.add( new NonIsotropicMetadata( downsampledDimensions, downsampledCellSize, downsamplingFactors ) );
 			}
@@ -105,14 +143,32 @@ public class N5NonIsotropicScalePyramidSpark3D
 			return scalesMetadata.get( scale );
 		}
 
-		public static double getPixelResolutionZtoXY( final double[] pixelResolution )
+		public int getDependentDownsamplingFactor( final int scale )
+		{
+			final NonIsotropicMetadata scaleMetadata = getScaleMetadata( scale );
+			if ( mainDimension == MainDimension.XY )
+				return scaleMetadata.downsamplingFactors[ 2 ];
+			else
+				return Math.max( scaleMetadata.downsamplingFactors[ 0 ], scaleMetadata.downsamplingFactors[ 1 ] );
+		}
+
+		public int[] getIntermediateDownsamplingFactors( final int scale )
+		{
+			final NonIsotropicMetadata scaleMetadata = getScaleMetadata( scale ), previousScaleMetadata = getScaleMetadata( scale - 1 );
+			if ( mainDimension == MainDimension.XY )
+				return new int[] { scaleMetadata.downsamplingFactors[ 0 ] / previousScaleMetadata.downsamplingFactors[ 0 ], scaleMetadata.downsamplingFactors[ 1 ] / previousScaleMetadata.downsamplingFactors[ 1 ], 1 };
+			else
+				return new int[] { 1, 1, scaleMetadata.downsamplingFactors[ 2 ] / previousScaleMetadata.downsamplingFactors[ 2 ] };
+		}
+
+		public static double getPixelResolutionRatioZtoXY( final double[] pixelResolution )
 		{
 			if ( pixelResolution == null )
 				return 1;
 			return pixelResolution[ 2 ] / Math.max( pixelResolution[ 0 ], pixelResolution[ 1 ] );
 		}
 
-		static int getNearestPowerOfTwo( final double value )
+		private static int getNearestPowerOfTwo( final double value )
 		{
 			return 1 << Math.max( 0, Math.round( ( Math.log( value ) / Math.log( 2 ) ) ) );
 		}
@@ -123,9 +179,11 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 	/**
 	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
-	 * Each scale level is downsampled by 2 in XY, and by the corresponding factors in Z to be as close as possible to isotropic.
-	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
-	 * Stores the resulting datasets in the same group as the input dataset.
+	 * The scale pyramid is constructed in the following way depending on the pixel resolution of the data:<br>
+	 * - if the resolution is better in X/Y than in Z: each scale level is downsampled by 2 in X/Y, and by the corresponding factors in Z to be as close as possible to isotropic<br>
+	 * - if the resolution is better in Z than in X/Y: each scale level is downsampled by 2 in Z, and by the corresponding factors in X/Y to be as close as possible to isotropic<br>
+	 *<p>
+	 * Adjusts the block size to be consistent with the scaling factors. Stores the resulting datasets in the same group as the input dataset.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -155,9 +213,11 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 	/**
 	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
-	 * Each scale level is downsampled by 2 in XY, and by the corresponding factors in Z to be as close as possible to isotropic.
-	 * Reuses the block size of the given dataset, and adjusts the block sizes in Z to be consistent with the scaling factors.
-	 * Stores the resulting datasets in the given output group.
+	 * The scale pyramid is constructed in the following way depending on the pixel resolution of the data:<br>
+	 * - if the resolution is better in X/Y than in Z: each scale level is downsampled by 2 in X/Y, and by the corresponding factors in Z to be as close as possible to isotropic<br>
+	 * - if the resolution is better in Z than in X/Y: each scale level is downsampled by 2 in Z, and by the corresponding factors in X/Y to be as close as possible to isotropic<br>
+	 *<p>
+	 * Adjusts the block size to be consistent with the scaling factors. Stores the resulting datasets in the given output group.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -179,7 +239,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 		if ( !Util.isApproxEqual( pixelResolution[ 0 ], pixelResolution[ 1 ], 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is different in X/Y" );
 
-		if ( Util.isApproxEqual( NonIsotropicScalePyramidMetadata.getPixelResolutionZtoXY( pixelResolution ), 1.0, 1e-10 ) )
+		if ( Util.isApproxEqual( NonIsotropicScalePyramidMetadata.getPixelResolutionRatioZtoXY( pixelResolution ), 1.0, 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is the same in X/Y/Z, use regular N5ScalePyramidSpark" );
 
 		final N5Writer n5 = n5Supplier.get();
@@ -194,20 +254,20 @@ public class N5NonIsotropicScalePyramidSpark3D
 				isPowerOfTwo
 			);
 
-		// prepare for downsampling in XY if required
-		final String xyGroupPath;
+		// prepare for intermediate downsampling if required
+		final String intermediateGroupPath;
 		if ( !scalePyramidMetadata.isPowerOfTwo )
 		{
-			System.out.println( "Ratio between Z and X/Y pixel resolution is not a power of two, intermediate downsampling in XY is required" );
-			xyGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-xy" ).toString();
-			if ( n5.exists( xyGroupPath ) )
-				throw new RuntimeException( "Group for intermediate downsampling in XY already exists: " + xyGroupPath );
-			n5.createGroup( xyGroupPath );
+			System.out.println( "Not a power of two, intermediate downsampling in " + scalePyramidMetadata.mainDimension + " is required" );
+			intermediateGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-" + scalePyramidMetadata.mainDimension ).toString();
+			if ( n5.exists( intermediateGroupPath ) )
+				throw new RuntimeException( "Group for intermediate downsampling in " + scalePyramidMetadata.mainDimension + " already exists: " + intermediateGroupPath );
+			n5.createGroup( intermediateGroupPath );
 		}
 		else
 		{
-			System.out.println( "Ratio between Z and X/Y pixel resolution IS a power of two, skip intermediate downsampling in XY" );
-			xyGroupPath = null;
+			System.out.println( "Power of two, skip intermediate downsampling in " + scalePyramidMetadata.mainDimension );
+			intermediateGroupPath = null;
 		}
 
 		// check for existence of output datasets and fail if any of them already exist
@@ -225,11 +285,11 @@ public class N5NonIsotropicScalePyramidSpark3D
 			final NonIsotropicMetadata scaleMetadata = scalePyramidMetadata.getScaleMetadata( scale );
 			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
 
-			if ( scaleMetadata.downsamplingFactors[ 2 ] == 1 || scalePyramidMetadata.isPowerOfTwo )
+			if ( scalePyramidMetadata.isPowerOfTwo || scalePyramidMetadata.getDependentDownsamplingFactor( scale ) == 1 )
 			{
 				final String inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
 
-				// downsampling in Z is not happening yet at this scale level, or intermediate downsampling in XY is not required at all
+				// intermediate downsampling is not happening yet at this scale level, or is not required at all
 				final NonIsotropicMetadata previousScaleMetadata = scalePyramidMetadata.getScaleMetadata( scale - 1 );
 				final int[] relativeDownsamplingFactors = new int[ scaleMetadata.downsamplingFactors.length ];
 				for ( int d = 0; d < relativeDownsamplingFactors.length; ++d )
@@ -251,36 +311,41 @@ public class N5NonIsotropicScalePyramidSpark3D
 			else
 			{
 				final String inputDatasetPath;
-				if ( scalePyramidMetadata.getScaleMetadata( scale - 1 ).downsamplingFactors[ 2 ] == 1 )
+				if ( scalePyramidMetadata.getDependentDownsamplingFactor( scale - 1 ) == 1 )
 				{
-					// this is the first scale level where downsampling in Z is required
+					// this is the first scale level where intermediate downsampling is required
 					inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
 				}
 				else
 				{
-					// there exists an intermediate XY downsampled export
-					inputDatasetPath = Paths.get( xyGroupPath, "s" + ( scale - 1 ) ).toString();
+					// there exists an intermediate downsampled export
+					inputDatasetPath = Paths.get( intermediateGroupPath, "s" + ( scale - 1 ) ).toString();
 				}
 
-				final String xyDatasetPath = Paths.get( xyGroupPath, "s" + scale ).toString();
+				final String intermediateDatasetPath = Paths.get( intermediateGroupPath, "s" + scale ).toString();
+				final int[] intermediateDownsamplingFactors = scalePyramidMetadata.getIntermediateDownsamplingFactors( scale );
 
-				// downsample in XY and store in the intermediate export group
+				// downsample and store in the intermediate export group
 				N5DownsamplerSpark.downsample(
 						sparkContext,
 						n5Supplier,
 						inputDatasetPath,
-						xyDatasetPath,
-						new int[] { 2, 2, 1 },
+						intermediateDatasetPath,
+						intermediateDownsamplingFactors,
 						scaleMetadata.cellSize
 					);
 
-				// downsample in Z and store in the output group
+				final int[] relativeDownsamplingFactors = new int[ intermediateDownsamplingFactors.length ];
+				for ( int d = 0; d < relativeDownsamplingFactors.length; ++d )
+					relativeDownsamplingFactors[ d ] = intermediateDownsamplingFactors[ d ] == 1 ? scaleMetadata.downsamplingFactors[ d ] : 1;
+
+				// downsample and store in the output group
 				N5DownsamplerSpark.downsample(
 						sparkContext,
 						n5Supplier,
-						xyDatasetPath,
+						intermediateDatasetPath,
 						outputDatasetPath,
-						new int[] { 1, 1, scaleMetadata.downsamplingFactors[ 2 ] },
+						relativeDownsamplingFactors,
 						scaleMetadata.cellSize
 					);
 			}
@@ -292,7 +357,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 		}
 
 		if ( !scalePyramidMetadata.isPowerOfTwo )
-			N5RemoveSpark.remove( sparkContext, n5Supplier, xyGroupPath );
+			N5RemoveSpark.remove( sparkContext, n5Supplier, intermediateGroupPath );
 
 		return downsampledDatasets;
 	}
@@ -350,11 +415,11 @@ public class N5NonIsotropicScalePyramidSpark3D
 		private String outputGroupPath;
 
 		@Option(name = "-r", aliases = { "--pixelResolution" }, required = true,
-				usage = "Pixel resolution of the data. Used to determine downsampling factors in Z to make the scale levels as close to isotropic as possible.")
+				usage = "Pixel resolution of the data in um (microns). Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible.")
 		private String pixelResolution;
 
 		@Option(name = "-p", aliases = { "--powerOfTwo" }, required = false,
-				usage = "Forces to generate a power of two scale pyramid with the closest Z downsampling factors to the pixel resolution of the data.")
+				usage = "Forces to generate a power-of-two scale pyramid that is as close to isotropic as possible.")
 		private boolean isPowerOfTwo;
 
 		public Arguments( final String... args ) throws IllegalArgumentException
