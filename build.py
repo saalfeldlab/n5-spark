@@ -6,7 +6,7 @@ import subprocess
 sys.dont_write_bytecode = True
 
 def run_build(base_folder, build_args=[]):
-	cmd_args = ['mvn', 'clean', 'package'] + build_args
+	cmd_args = ['mvn', 'package'] + build_args
 	subprocess.call(cmd_args, cwd=base_folder)
 
 if __name__ == '__main__':
