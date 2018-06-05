@@ -239,9 +239,6 @@ public class N5NonIsotropicScalePyramidSpark3D
 		if ( !Util.isApproxEqual( pixelResolution[ 0 ], pixelResolution[ 1 ], 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is different in X/Y" );
 
-		if ( Util.isApproxEqual( NonIsotropicScalePyramidMetadata.getPixelResolutionRatioZtoXY( pixelResolution ), 1.0, 1e-10 ) )
-			throw new IllegalArgumentException( "Pixel resolution is the same in X/Y/Z, use regular N5ScalePyramidSpark" );
-
 		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( fullScaleDatasetPath );
 		final long[] fullScaleDimensions = fullScaleAttributes.getDimensions();
