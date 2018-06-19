@@ -312,7 +312,7 @@ public class N5ConvertSpark
 		// adjust the size of the processing block to minimize number of reads of each input block
 		final int[] adjustedBlockSize = new int[ inputBlockSize.length ];
 		for ( int d = 0; d < adjustedBlockSize.length; ++d )
-			adjustedBlockSize[ d ] = ( int ) Math.round( ( double ) inputBlockSize[ d ] / outputBlockSize[ d ] ) * outputBlockSize[ d ];
+			adjustedBlockSize[ d ] = ( int ) Math.max( Math.round( ( double ) inputBlockSize[ d ] / outputBlockSize[ d ] ), 1) * outputBlockSize[ d ];
 
 		final long numAdjustedBlocks = Intervals.numElements( new CellGrid( dimensions, adjustedBlockSize ).getGridDimensions() );
 		final List< Long > adjustedBlockIndexes = LongStream.range( 0, numAdjustedBlocks ).boxed().collect( Collectors.toList() );
