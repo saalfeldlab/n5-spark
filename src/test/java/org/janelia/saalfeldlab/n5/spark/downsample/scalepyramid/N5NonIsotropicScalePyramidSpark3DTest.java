@@ -14,6 +14,7 @@ import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark;
 import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.NonIsotropicMetadata;
 import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.NonIsotropicScalePyramidMetadata;
 import org.junit.After;
@@ -106,7 +107,11 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
 				n5.datasetExists( datasetPath ) &&
 				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
-				n5.datasetExists( downsampledLastDatasetPath ) );
+				n5.datasetExists( downsampledLastDatasetPath )
+			);
+
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, n5.getAttribute( downsampledIntermediateDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
+		Assert.assertArrayEquals( new int[] { 4, 4, 2 }, n5.getAttribute( downsampledLastDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
 		Assert.assertArrayEquals( new long[] { 1, 1, 2 }, downsampledAttributes.getDimensions() );
@@ -146,6 +151,9 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 				n5.datasetExists( datasetPath ) &&
 				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
 				n5.datasetExists( downsampledLastDatasetPath ) );
+
+		Assert.assertArrayEquals( new int[] { 1, 1, 2 }, n5.getAttribute( downsampledIntermediateDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
+		Assert.assertArrayEquals( new int[] { 2, 2, 4 }, n5.getAttribute( downsampledLastDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
 		Assert.assertArrayEquals( new long[] { 2, 2, 1 }, downsampledAttributes.getDimensions() );

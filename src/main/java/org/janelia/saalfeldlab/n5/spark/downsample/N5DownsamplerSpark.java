@@ -34,6 +34,8 @@ import net.imglib2.view.Views;
 
 public class N5DownsamplerSpark
 {
+	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
+
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
@@ -112,6 +114,13 @@ public class N5DownsamplerSpark
 				inputAttributes.getCompression()
 			);
 
+		// set the downsampling factors attribute
+		final int[] inputAbsoluteDownsamplingFactors = n5.getAttribute( inputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class );
+		final int[] outputAbsoluteDownsamplingFactors = new int[ downsamplingFactors.length ];
+		for ( int d = 0; d < downsamplingFactors.length; ++d )
+			outputAbsoluteDownsamplingFactors[ d ] = downsamplingFactors[ d ] * ( inputAbsoluteDownsamplingFactors != null ? inputAbsoluteDownsamplingFactors[ d ] : 1 );
+		n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, outputAbsoluteDownsamplingFactors );
+
 		final CellGrid outputCellGrid = new CellGrid( outputDimensions, outputBlockSize );
 		final long numDownsampledBlocks = Intervals.numElements( outputCellGrid.getGridDimensions() );
 		final List< Long > blockIndexes = LongStream.range( 0, numDownsampledBlocks ).boxed().collect( Collectors.toList() );
@@ -169,22 +178,22 @@ public class N5DownsamplerSpark
 			) )
 		{
 			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
-			
+
 			final String[] outputDatasetPath = parsedArgs.getOutputDatasetPath();
 			final int[][] downsamplingFactors = parsedArgs.getDownsamplingFactors();
-			
+
 			if ( outputDatasetPath.length != downsamplingFactors.length )
 				throw new IllegalArgumentException( "Number of output datasets does not match downsampling factors!" );
-			
+
 			downsample(
 					sparkContext,
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
-					outputDatasetPath[0],
-					downsamplingFactors[0],
+					outputDatasetPath[ 0 ],
+					downsamplingFactors[ 0 ],
 					parsedArgs.getBlockSize()
 				);
-			
+
 			for ( int i = 1; i < downsamplingFactors.length; i++ )
 			{
 				downsample(
@@ -193,7 +202,8 @@ public class N5DownsamplerSpark
 						outputDatasetPath[ i - 1 ],
 						outputDatasetPath[ i ],
 						downsamplingFactors[ i ],
-						parsedArgs.getBlockSize() );
+						parsedArgs.getBlockSize()
+					);
 			}
 		}
 		System.out.println( "Done" );
