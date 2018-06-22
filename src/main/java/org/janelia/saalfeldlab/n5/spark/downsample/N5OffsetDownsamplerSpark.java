@@ -184,7 +184,7 @@ public class N5OffsetDownsamplerSpark
 				return;
 
 			/* do if not empty */
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 
 			if ( Intervals.equalDimensions( definedSourceBlockInterval, sourceInterval ) )
 				Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );

@@ -90,7 +90,7 @@ public class N5SliceTiffConverter
 				slicePos[ sliceDimension ] = slice;
 				cellGrid.getCellPosition( slicePos, cellPos );
 
-				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory< T >().create( sliceDimensions, Util.getTypeFromInterval( cellImg ) );
+				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory<>( Util.getTypeFromInterval( cellImg ) ).create( sliceDimensions );
 
 				final LazyCells< ? extends Cell< ? > > cells = cellImg.getCells();
 				final long[] cellGridMin = new long[ cellImg.numDimensions() ], cellGridMax = new long[ cellImg.numDimensions() ];

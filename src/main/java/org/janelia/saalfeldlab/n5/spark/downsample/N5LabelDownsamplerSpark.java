@@ -162,7 +162,7 @@ public class N5LabelDownsamplerSpark
 				return;
 
 			/* do if not empty */
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			downsampleLabel( sourceBlock, targetBlock, downsamplingFactors );
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );

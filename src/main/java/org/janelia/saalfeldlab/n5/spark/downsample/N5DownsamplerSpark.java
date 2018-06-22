@@ -160,7 +160,7 @@ public class N5DownsamplerSpark
 				return;
 
 			/* do if not empty */
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
