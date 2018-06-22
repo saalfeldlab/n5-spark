@@ -200,7 +200,7 @@ public class N5ConvertSparkTest
 
 	private < T extends NativeType< T > & RealType< T > > ArrayImg< T, ? > createImage( final T value, final long... dimensions )
 	{
-		final ArrayImg< T, ? > img = new ArrayImgFactory< T >().create( dimensions, value.createVariable() );
+		final ArrayImg< T, ? > img = new ArrayImgFactory<>( value.createVariable() ).create( dimensions );
 		final Cursor< T > imgCursor = img.cursor();
 		while ( imgCursor.hasNext() )
 			imgCursor.next().set( value );
@@ -209,7 +209,7 @@ public class N5ConvertSparkTest
 
 	private < T extends NativeType< T > & RealType< T > > ArrayImg< T, ? > getImgFromRandomAccessibleInterval( final RandomAccessibleInterval< ? extends RealType< ? > > rai, final T value )
 	{
-		final ArrayImg< T, ? > img = new ArrayImgFactory< T >().create( Intervals.dimensionsAsLongArray( rai ), value.createVariable() );
+		final ArrayImg< T, ? > img = new ArrayImgFactory<>( value.createVariable() ).create( Intervals.dimensionsAsLongArray( rai ) );
 		final Cursor< ? extends RealType< ? > > raiCursor = Views.flatIterable( rai ).cursor();
 		final Cursor< T > imgCursor = Views.flatIterable( img ).cursor();
 		while ( raiCursor.hasNext() || imgCursor.hasNext() )

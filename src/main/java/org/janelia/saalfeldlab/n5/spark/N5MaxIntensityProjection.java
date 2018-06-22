@@ -200,12 +200,11 @@ public class N5MaxIntensityProjection
 						for ( int d = 0; d < dim; ++d )
 						{
 							final RandomAccessibleInterval< T > cellMip = Views.translate(
-									new ArrayImgFactory< T >().create(
+									new ArrayImgFactory<>( typeBroadcast.value() ).create(
 											getMipPosition(
 													Intervals.dimensionsAsLongArray( new FinalDimensions( cellDims ) ), // ugly conversion from int[] to long[]
 													d
-												),
-											typeBroadcast.value()
+												)
 										),
 									getMipPosition( cellMin, d )
 								);
@@ -263,9 +262,8 @@ public class N5MaxIntensityProjection
 						final int mipDimension = keyAndMips._1().dimension;
 						final long mipCoordinate = cellsInSingleMIP == null ? 0 : ( long ) keyAndMips._1().mipStep * cellsInSingleMIP[ mipDimension ] * blockSize[ mipDimension ];
 
-						final ImagePlusImg< T, ? > mip = new ImagePlusImgFactory< T >().create(
-								getMipPosition( dimensions, mipDimension ),
-								typeBroadcast.value()
+						final ImagePlusImg< T, ? > mip = new ImagePlusImgFactory<>( typeBroadcast.value() ).create(
+								getMipPosition( dimensions, mipDimension )
 							);
 
 						for ( final RandomAccessibleInterval< T > cellMip : keyAndMips._2() )

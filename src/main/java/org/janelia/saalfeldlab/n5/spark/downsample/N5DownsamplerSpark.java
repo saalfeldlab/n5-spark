@@ -18,6 +18,7 @@ import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.StringArrayOptionHandler;
 
 import bdv.export.Downsample;
 import net.imglib2.FinalInterval;
@@ -33,6 +34,8 @@ import net.imglib2.view.Views;
 
 public class N5DownsamplerSpark
 {
+	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
+
 	private static final int MAX_PARTITIONS = 15000;
 
 	/**
@@ -111,6 +114,13 @@ public class N5DownsamplerSpark
 				inputAttributes.getCompression()
 			);
 
+		// set the downsampling factors attribute
+		final int[] inputAbsoluteDownsamplingFactors = n5.getAttribute( inputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class );
+		final int[] outputAbsoluteDownsamplingFactors = new int[ downsamplingFactors.length ];
+		for ( int d = 0; d < downsamplingFactors.length; ++d )
+			outputAbsoluteDownsamplingFactors[ d ] = downsamplingFactors[ d ] * ( inputAbsoluteDownsamplingFactors != null ? inputAbsoluteDownsamplingFactors[ d ] : 1 );
+		n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, outputAbsoluteDownsamplingFactors );
+
 		final CellGrid outputCellGrid = new CellGrid( outputDimensions, outputBlockSize );
 		final long numDownsampledBlocks = Intervals.numElements( outputCellGrid.getGridDimensions() );
 		final List< Long > blockIndexes = LongStream.range( 0, numDownsampledBlocks ).boxed().collect( Collectors.toList() );
@@ -150,7 +160,7 @@ public class N5DownsamplerSpark
 				return;
 
 			/* do if not empty */
-			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory< T >().create( targetInterval, defaultValue );
+			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
@@ -168,14 +178,33 @@ public class N5DownsamplerSpark
 			) )
 		{
 			final N5WriterSupplier n5Supplier = () -> new N5FSWriter( parsedArgs.getN5Path() );
+
+			final String[] outputDatasetPath = parsedArgs.getOutputDatasetPath();
+			final int[][] downsamplingFactors = parsedArgs.getDownsamplingFactors();
+
+			if ( outputDatasetPath.length != downsamplingFactors.length )
+				throw new IllegalArgumentException( "Number of output datasets does not match downsampling factors!" );
+
 			downsample(
 					sparkContext,
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
-					parsedArgs.getOutputDatasetPath(),
-					parsedArgs.getDownsamplingFactors(),
+					outputDatasetPath[ 0 ],
+					downsamplingFactors[ 0 ],
 					parsedArgs.getBlockSize()
 				);
+
+			for ( int i = 1; i < downsamplingFactors.length; i++ )
+			{
+				downsample(
+						sparkContext,
+						n5Supplier,
+						outputDatasetPath[ i - 1 ],
+						outputDatasetPath[ i ],
+						downsamplingFactors[ i ],
+						parsedArgs.getBlockSize()
+					);
+			}
 		}
 		System.out.println( "Done" );
 	}
@@ -192,13 +221,13 @@ public class N5DownsamplerSpark
 				usage = "Path to the input dataset within the N5 container (e.g. data/group/s0).")
 		private String inputDatasetPath;
 
-		@Option(name = "-o", aliases = { "--outputDatasetPath" }, required = true,
-				usage = "Path to the output dataset to be created (e.g. data/group/s1).")
-		private String outputDatasetPath;
+		@Option(name = "-o", aliases = { "--outputDatasetPath" }, required = true, handler = StringArrayOptionHandler.class,
+				usage = "Path(s) to the output dataset to be created (e.g. data/group/s1).")
+		private String[] outputDatasetPath;
 
-		@Option(name = "-f", aliases = { "--factors" }, required = true,
-				usage = "Downsampling factors.")
-		private String downsamplingFactors;
+		@Option(name = "-f", aliases = { "--factors" }, required = true, handler = StringArrayOptionHandler.class,
+				usage = "Downsampling factors. If using multiple, each factor builds on the last.")
+		private String[] downsamplingFactors;
 
 		@Option(name = "-b", aliases = { "--blockSize" }, required = false,
 				usage = "Block size for the output dataset (by default same as for input dataset).")
@@ -221,8 +250,8 @@ public class N5DownsamplerSpark
 
 		public String getN5Path() { return n5Path; }
 		public String getInputDatasetPath() { return inputDatasetPath; }
-		public String getOutputDatasetPath() { return outputDatasetPath; }
-		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
+		public String[] getOutputDatasetPath() { return outputDatasetPath; }
+		public int[][] getDownsamplingFactors() { return CmdUtils.parseMultipleIntArrays( downsamplingFactors ); }
 		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
 	}
 }

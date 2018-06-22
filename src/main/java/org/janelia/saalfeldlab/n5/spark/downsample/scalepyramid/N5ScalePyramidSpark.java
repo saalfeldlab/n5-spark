@@ -21,8 +21,6 @@ import org.kohsuke.args4j.Option;
 
 public class N5ScalePyramidSpark
 {
-	public static final String DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY = "downsamplingFactors";
-
 	/**
 	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors.
 	 * Reuses the block size of the input dataset. Stores the resulting datasets in the same group as the input dataset.
@@ -53,7 +51,6 @@ public class N5ScalePyramidSpark
 	/**
 	 * Generates a scale pyramid for a given dataset. Each scale level is downsampled by the specified factors.
 	 * Reuses the block size of the input dataset. Stores the resulting datasets in the given output group.
-	 * Stores the resulting datasets in the given output group.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -101,7 +98,6 @@ public class N5ScalePyramidSpark
 					downsamplingStepFactors
 				);
 
-			n5.setAttribute( outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, scaleFactors );
 			downsampledDatasets.add( outputDatasetPath );
 		}
 

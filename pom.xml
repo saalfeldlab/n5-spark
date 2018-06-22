@@ -5,13 +5,13 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>19.2.0</version>
+		<version>22.3.0</version>
 		<relativePath />
 	</parent>
 
 	<groupId>org.janelia.saalfeldlab</groupId>
 	<artifactId>n5-spark</artifactId>
-	<version>2.1.0</version>
+	<version>3.0.0</version>
 	<name>N5 Spark</name>
 	<description>N5 Spark-based processing tools</description>
 
@@ -65,7 +65,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-shade-plugin</artifactId>
-						<version>3.1.0</version>
+						<version>3.1.1</version>
 						<configuration>
 							<!-- Do not minimize for now to speed up packaging. -->
 							<!--<minimizeJar>true</minimizeJar> -->
@@ -127,6 +127,10 @@
 			<artifactId>imglib2-ij</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>bigdataviewer-core</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.janelia.saalfeldlab</groupId>
 			<artifactId>n5</artifactId>
 			<version>2.0.2</version>
@@ -134,7 +138,7 @@
 		<dependency>
 			<groupId>org.janelia.saalfeldlab</groupId>
 			<artifactId>n5-imglib2</artifactId>
-			<version>2.1.0</version>
+			<version>3.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>

@@ -237,7 +237,8 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid with power of two downsampling in X/Y and adjustment of Z downsampling factors and Z block sizes to the closest to isotropic with respect to X/Y.
+* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid of a dataset with different resolution in X/Y and Z. Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible. The pixel resolution parameter is given in um (microns) formatted as a comma-separated list, for example, `0.097,0.097,0.18`.<br/>
+If the optional argument `-p` is provided, all downsampling factors are forced to be powers of two. This mode is faster as it does not require any intermediate downsampling steps.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
@@ -248,6 +249,7 @@ Generates a scale pyramid:
   -i <input dataset> 
   -r <pixel resolution> 
   [-o <output group>]
+  [-p]
   ```
   </details>  
   <details> 
@@ -259,6 +261,7 @@ Generates a scale pyramid:
   -i <input dataset> 
   -r <pixel resolution> 
   [-o <output group>]
+  [-p]
   ```
   </details>
 

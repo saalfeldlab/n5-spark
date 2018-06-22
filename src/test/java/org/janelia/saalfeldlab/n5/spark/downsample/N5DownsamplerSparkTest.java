@@ -82,6 +82,7 @@ public class N5DownsamplerSparkTest
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
 		Assert.assertArrayEquals( new long[] { 2, 2, 2 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, downsampledAttributes.getBlockSize() );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2 }, n5.getAttribute( downsampledDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		for ( final byte zCoord : new byte[] { 0, 1 } )
 		{
@@ -113,6 +114,7 @@ public class N5DownsamplerSparkTest
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
 		Assert.assertArrayEquals( new long[] { 3, 3 }, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( new int[] { 3, 1 }, downsampledAttributes.getBlockSize() );
+		Assert.assertArrayEquals( new int[] { 2, 2 }, n5.getAttribute( downsampledDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		Assert.assertArrayEquals(
 				new int[] {
@@ -169,6 +171,7 @@ public class N5DownsamplerSparkTest
 		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledDatasetPath );
 		Assert.assertArrayEquals( expectedDownsampledDimensions, downsampledAttributes.getDimensions() );
 		Assert.assertArrayEquals( blockSize, downsampledAttributes.getBlockSize() );
+		Assert.assertArrayEquals( downsamplingFactors, n5.getAttribute( downsampledDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		final long numElements = Intervals.numElements( dimensions );
 		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
