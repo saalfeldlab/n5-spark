@@ -21,7 +21,12 @@ If you have already cloned the repository, run this after cloning to fetch the s
 git submodule update --init --recursive
 ```
 
-To use as a standalone tool, compile the package for the desired execution environment:
+`n5-spark` for use on local machine is available on conda:
+```
+conda -c hanslovsky install n5-spark
+```
+
+Alternatively, to use as a standalone tool, compile the package for the desired execution environment:
 
 <details>
 <summary><b>Compile for running on Janelia cluster</b></summary>
