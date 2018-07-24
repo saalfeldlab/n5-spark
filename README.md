@@ -1,5 +1,5 @@
 # n5-spark
-A small library for processing N5 datasets in parallel using Apache Spark cluster.
+A small library for processing [N5](https://github.com/saalfeldlab/n5) datasets on an Apache Spark cluster.
 
 Supported operations:
 * resaving using different blocksize / datatype / compression
