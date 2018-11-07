@@ -34,6 +34,12 @@ Alternatively, to use as a standalone tool, compile the package for the desired 
 ```bash
 python build.py
 ```
+
+While OpenJDK and Maven's surefire plugin have this joint [bug](https://stackoverflow.com/questions/53010200/maven-surefire-could-not-find-forkedbooter-class), you will have to build with
+```bash
+_JAVA_OPTIONS=-Djdk.net.URLClassPath.disableClassPathURLCheck=true ./build.py
+```
+
 </details>
 
 <details>
@@ -41,6 +47,11 @@ python build.py
 
 ```bash
 python build-spark-local.py
+```
+
+While OpenJDK and Maven's surefire plugin have this joint [bug](https://stackoverflow.com/questions/53010200/maven-surefire-could-not-find-forkedbooter-class), you will have to build with
+```bash
+_JAVA_OPTIONS=-Djdk.net.URLClassPath.disableClassPathURLCheck=true ./build-spark-local.py
 ```
 </details>
 <br/>
