@@ -253,13 +253,14 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid of a dataset with different resolution in X/Y and Z. Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible. The pixel resolution parameter is given in um (microns) formatted as a comma-separated list, for example, `0.097,0.097,0.18`.<br/>
-If the optional argument `-p` is provided, all downsampling factors are forced to be powers of two. This mode is faster as it does not require any intermediate downsampling steps.
+* <b>Non-isotropic scale pyramid</b>: generates a scale pyramid of a dataset with different resolution in X/Y and Z. Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible. The pixel resolution parameter is given in um (microns) formatted as a comma-separated list, for example, `0.097,0.097,0.18`.<br/>
+If the optional argument `-p` is provided, all downsampling factors are forced to be powers of two. This mode is faster as it does not require any intermediate downsampling steps.<br/>
+Only the first 3 dimensions of the input data are downsampled. If the input data is of higher dimensionality than 3, the rest of the dimensions are written out as is.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-scale-pyramid-nonisotropic-3d.py 
+  spark-janelia/n5-scale-pyramid-nonisotropic.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -272,7 +273,7 @@ If the optional argument `-p` is provided, all downsampling factors are forced t
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-scale-pyramid-nonisotropic-3d.py 
+  spark-local/n5-scale-pyramid-nonisotropic.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -r <pixel resolution> 
