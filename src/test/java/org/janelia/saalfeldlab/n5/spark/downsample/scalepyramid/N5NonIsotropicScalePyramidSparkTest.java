@@ -15,8 +15,8 @@ import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5WriterSupplier;
 import org.janelia.saalfeldlab.n5.spark.downsample.N5DownsamplerSpark;
-import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.NonIsotropicMetadata;
-import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark3D.NonIsotropicScalePyramidMetadata;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark.NonIsotropicMetadata3D;
+import org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5NonIsotropicScalePyramidSpark.NonIsotropicScalePyramidMetadata3D;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
-public class N5NonIsotropicScalePyramidSpark3DTest
+public class N5NonIsotropicScalePyramidSparkTest
 {
 	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
 	static private final String datasetPath = "data";
@@ -47,7 +47,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 
 		sparkContext = new JavaSparkContext( new SparkConf()
 				.setMaster( "local[*]" )
-				.setAppName( "N5NonIsotropicScalePyramid3DTest" )
+				.setAppName( "N5NonIsotropicScalePyramidTest" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			);
 	}
@@ -91,7 +91,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 2, 2, 1 } );
 
-		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark3D.downsampleNonIsotropicScalePyramid(
+		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark.downsampleNonIsotropicScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -134,7 +134,7 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 		final N5Writer n5 = n5Supplier.get();
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 1, 1, 2 } );
 
-		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark3D.downsampleNonIsotropicScalePyramid(
+		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark.downsampleNonIsotropicScalePyramid(
 				sparkContext,
 				n5Supplier,
 				datasetPath,
@@ -175,8 +175,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_Isotropic()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 8 }, null, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 8 }, null, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -211,8 +211,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -247,8 +247,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_PowerOfTwo()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 }, true );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 4 }, new double[] { 0.097, 0.097, 0.18 }, true );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -283,8 +283,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_3x()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -319,8 +319,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_3x_PowerOfTwo()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 }, true );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 3 }, new double[] { 0.5, 0.5, 1.5 }, true );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -355,8 +355,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_4x()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 8, 8, 2 }, new double[] { 0.5, 0.5, 2 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 8, 8, 2 }, new double[] { 0.5, 0.5, 2 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -391,8 +391,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_8x()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 32 }, new double[] { 1, 1, 8 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 32 }, new double[] { 1, 1, 8 }, false );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -447,8 +447,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_10x()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 }, false );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -503,8 +503,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_10x_PowerOfTwo()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 }, true );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 2048, 2048, 2048 }, new int[] { 256, 256, 26 }, new double[] { 1, 1, 10 }, true );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -559,8 +559,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_10x_BiggerBlock()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 }, false );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -615,8 +615,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_10x_BiggerBlock_PowerOfTwo()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 }, true );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 2048, 2048, 2048 }, new int[] { 650, 650, 71 }, new double[] { 1, 1, 10 }, true );
 		Assert.assertEquals( 12, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 2048, 2048, 2048 }, scaleMetadata.dimensions );
@@ -671,8 +671,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_Z()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 3, 3, 8 }, new double[] { 0.15, 0.15, 0.05 }, false );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 3, 3, 8 }, new double[] { 0.15, 0.15, 0.05 }, false );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );
@@ -707,8 +707,8 @@ public class N5NonIsotropicScalePyramidSpark3DTest
 	@Test
 	public void testScalePyramidMetadata_NonIsotropic_Z_PowerOfTwo()
 	{
-		NonIsotropicMetadata scaleMetadata;
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata( new long[] { 64, 64, 64 }, new int[] { 3, 3, 8 }, new double[] { 0.15, 0.15, 0.05 }, true );
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 64, 64, 64 }, new int[] { 3, 3, 8 }, new double[] { 0.15, 0.15, 0.05 }, true );
 		Assert.assertEquals( 7, scalePyramidMetadata.getNumScales() );
 		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
 		Assert.assertArrayEquals( new long[] { 64, 64, 64 }, scaleMetadata.dimensions );

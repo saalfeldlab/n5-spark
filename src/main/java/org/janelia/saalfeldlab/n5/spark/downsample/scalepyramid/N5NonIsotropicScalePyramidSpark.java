@@ -22,15 +22,15 @@ import org.kohsuke.args4j.Option;
 
 import net.imglib2.util.Util;
 
-public class N5NonIsotropicScalePyramidSpark3D
+public class N5NonIsotropicScalePyramidSpark
 {
-	static class NonIsotropicMetadata
+	static class NonIsotropicMetadata3D
 	{
 		public final long[] dimensions;
 		public final int[] cellSize;
 		public final int[] downsamplingFactors;
 
-		public NonIsotropicMetadata(
+		public NonIsotropicMetadata3D(
 				final long[] dimensions,
 				final int[] cellSize,
 				final int[] downsamplingFactors )
@@ -41,7 +41,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 		}
 	}
 
-	static class NonIsotropicScalePyramidMetadata
+	static class NonIsotropicScalePyramidMetadata3D
 	{
 		static enum MainDimension
 		{
@@ -51,17 +51,20 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 		private static final double EPSILON = 1e-10;
 
-		public final List< NonIsotropicMetadata > scalesMetadata;
+		public final List< NonIsotropicMetadata3D > scalesMetadata;
 		public final MainDimension mainDimension;
 		public final boolean isPowerOfTwo;
 		private final double pixelResolutionRatio;
 
-		public NonIsotropicScalePyramidMetadata(
-				final long[] fullScaleDimensions,
-				final int[] fullScaleCellSize,
+		public NonIsotropicScalePyramidMetadata3D(
+				final long[] fullScaleDimensions3D,
+				final int[] fullScaleCellSize3D,
 				final double[] pixelResolution,
 				final boolean isPowerOfTwo )
 		{
+			if ( fullScaleDimensions3D.length != 3 || fullScaleCellSize3D.length != 3 || ( pixelResolution != null && pixelResolution.length != 3 ) )
+				throw new IllegalArgumentException( "Expected fullScaleDimensions3D, fullScaleCellSize3D, pixelResolution arrays of length 3" );
+
 			// determine the main dimension which is the one with better resolution
 			final double ratioZtoXY = getPixelResolutionRatioZtoXY( pixelResolution );
 			if ( ratioZtoXY > 1 )
@@ -81,15 +84,12 @@ public class N5NonIsotropicScalePyramidSpark3D
 				);
 
 			scalesMetadata = new ArrayList<>();
-			init( fullScaleDimensions, fullScaleCellSize, pixelResolution );
+			init( fullScaleDimensions3D, fullScaleCellSize3D );
 		}
 
-		private void init(
-				final long[] fullScaleDimensions,
-				final int[] fullScaleCellSize,
-				final double[] pixelResolution )
+		private void init( final long[] fullScaleDimensions, final int[] fullScaleCellSize )
 		{
-			scalesMetadata.add( new NonIsotropicMetadata( fullScaleDimensions.clone(), fullScaleCellSize.clone(), new int[] { 1, 1, 1 } ) );
+			scalesMetadata.add( new NonIsotropicMetadata3D( fullScaleDimensions.clone(), fullScaleCellSize.clone(), new int[] { 1, 1, 1 } ) );
 			for ( int scale = 1; ; ++scale )
 			{
 				final int mainDownsamplingFactor = 1 << scale;
@@ -129,7 +129,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 				else
 					downsampledCellSize = new int[] { dependentAdjustedCellSize, dependentAdjustedCellSize, fullScaleCellSize[ 2 ] };
 
-				scalesMetadata.add( new NonIsotropicMetadata( downsampledDimensions, downsampledCellSize, downsamplingFactors ) );
+				scalesMetadata.add( new NonIsotropicMetadata3D( downsampledDimensions, downsampledCellSize, downsamplingFactors ) );
 			}
 		}
 
@@ -138,14 +138,14 @@ public class N5NonIsotropicScalePyramidSpark3D
 			return scalesMetadata.size();
 		}
 
-		public NonIsotropicMetadata getScaleMetadata( final int scale )
+		public NonIsotropicMetadata3D getScaleMetadata( final int scale )
 		{
 			return scalesMetadata.get( scale );
 		}
 
 		public int getDependentDownsamplingFactor( final int scale )
 		{
-			final NonIsotropicMetadata scaleMetadata = getScaleMetadata( scale );
+			final NonIsotropicMetadata3D scaleMetadata = getScaleMetadata( scale );
 			if ( mainDimension == MainDimension.XY )
 				return scaleMetadata.downsamplingFactors[ 2 ];
 			else
@@ -154,7 +154,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 
 		public int[] getIntermediateDownsamplingFactors( final int scale )
 		{
-			final NonIsotropicMetadata scaleMetadata = getScaleMetadata( scale ), previousScaleMetadata = getScaleMetadata( scale - 1 );
+			final NonIsotropicMetadata3D scaleMetadata = getScaleMetadata( scale ), previousScaleMetadata = getScaleMetadata( scale - 1 );
 			if ( mainDimension == MainDimension.XY )
 				return new int[] { scaleMetadata.downsamplingFactors[ 0 ] / previousScaleMetadata.downsamplingFactors[ 0 ], scaleMetadata.downsamplingFactors[ 1 ] / previousScaleMetadata.downsamplingFactors[ 1 ], 1 };
 			else
@@ -177,12 +177,14 @@ public class N5NonIsotropicScalePyramidSpark3D
 	private static final String PIXEL_RESOLUTION_ATTRIBUTE_KEY = "pixelResolution";
 
 	/**
-	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
+	 * Generates a scale pyramid for a given dataset. Assumes that the pixel resolution is the same in X and Y.
 	 * The scale pyramid is constructed in the following way depending on the pixel resolution of the data:<br>
 	 * - if the resolution is better in X/Y than in Z: each scale level is downsampled by 2 in X/Y, and by the corresponding factors in Z to be as close as possible to isotropic<br>
 	 * - if the resolution is better in Z than in X/Y: each scale level is downsampled by 2 in Z, and by the corresponding factors in X/Y to be as close as possible to isotropic<br>
 	 *<p>
 	 * Adjusts the block size to be consistent with the scaling factors. Stores the resulting datasets in the same group as the input dataset.
+	 *<p>
+	 * Works only with 3D and higher dimensionality data. Only the first three dimensions are used for non-isotropic downsampling, and the rest of the dimensions are written out as is.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -211,12 +213,14 @@ public class N5NonIsotropicScalePyramidSpark3D
 	}
 
 	/**
-	 * Generates a scale pyramid for a given dataset (3D only). Assumes that the pixel resolution is the same in X and Y.
+	 * Generates a scale pyramid for a given dataset. Assumes that the pixel resolution is the same in X and Y.
 	 * The scale pyramid is constructed in the following way depending on the pixel resolution of the data:<br>
 	 * - if the resolution is better in X/Y than in Z: each scale level is downsampled by 2 in X/Y, and by the corresponding factors in Z to be as close as possible to isotropic<br>
 	 * - if the resolution is better in Z than in X/Y: each scale level is downsampled by 2 in Z, and by the corresponding factors in X/Y to be as close as possible to isotropic<br>
 	 *<p>
 	 * Adjusts the block size to be consistent with the scaling factors. Stores the resulting datasets in the given output group.
+	 *<p>
+	 * Works only with 3D and higher dimensionality data. Only the first three dimensions are used for non-isotropic downsampling, and the rest of the dimensions are written out as is.
 	 *
 	 * @param sparkContext
 	 * @param n5Supplier
@@ -235,40 +239,47 @@ public class N5NonIsotropicScalePyramidSpark3D
 			final double[] pixelResolution,
 			final boolean isPowerOfTwo ) throws IOException
 	{
+		if ( pixelResolution.length != 3 )
+			throw new IllegalArgumentException( "Expected pixelResolution array of length 3, got " + pixelResolution.length );
+
 		if ( !Util.isApproxEqual( pixelResolution[ 0 ], pixelResolution[ 1 ], 1e-10 ) )
 			throw new IllegalArgumentException( "Pixel resolution is different in X/Y" );
 
 		final N5Writer n5 = n5Supplier.get();
 		final DatasetAttributes fullScaleAttributes = n5.getDatasetAttributes( fullScaleDatasetPath );
+
+		if ( fullScaleAttributes.getNumDimensions() < 3 )
+			throw new IllegalArgumentException( "Works only with 3D and higher dimensionality data, got " + fullScaleAttributes.getNumDimensions() + "D" );
+
 		final long[] fullScaleDimensions = fullScaleAttributes.getDimensions();
 		final int[] fullScaleCellSize = fullScaleAttributes.getBlockSize();
 
-		final NonIsotropicScalePyramidMetadata scalePyramidMetadata = new NonIsotropicScalePyramidMetadata(
-				fullScaleDimensions,
-				fullScaleCellSize,
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata3D = new NonIsotropicScalePyramidMetadata3D(
+				getDimensions3D( fullScaleDimensions ),
+				getBlockSizes3D( fullScaleCellSize ),
 				pixelResolution,
 				isPowerOfTwo
 			);
 
 		// prepare for intermediate downsampling if required
 		final String intermediateGroupPath;
-		if ( !scalePyramidMetadata.isPowerOfTwo )
+		if ( !scalePyramidMetadata3D.isPowerOfTwo )
 		{
-			System.out.println( "Not a power of two, intermediate downsampling in " + scalePyramidMetadata.mainDimension + " is required" );
-			intermediateGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-" + scalePyramidMetadata.mainDimension ).toString();
+			System.out.println( "Not a power of two, intermediate downsampling in " + scalePyramidMetadata3D.mainDimension + " is required" );
+			intermediateGroupPath = Paths.get( outputGroupPath, "intermediate-downsampling-" + scalePyramidMetadata3D.mainDimension ).toString();
 			if ( n5.exists( intermediateGroupPath ) )
-				throw new RuntimeException( "Group for intermediate downsampling in " + scalePyramidMetadata.mainDimension + " already exists: " + intermediateGroupPath );
+				throw new RuntimeException( "Group for intermediate downsampling in " + scalePyramidMetadata3D.mainDimension + " already exists: " + intermediateGroupPath );
 			n5.createGroup( intermediateGroupPath );
 		}
 		else
 		{
-			System.out.println( "Power of two, skip intermediate downsampling in " + scalePyramidMetadata.mainDimension );
+			System.out.println( "Power of two, skip intermediate downsampling in " + scalePyramidMetadata3D.mainDimension );
 			intermediateGroupPath = null;
 		}
 
 		// check for existence of output datasets and fail if any of them already exist
 		// it is safer to do so because otherwise the user may accidentally overwrite useful data
-		for ( int scale = 1; scale < scalePyramidMetadata.getNumScales(); ++scale )
+		for ( int scale = 1; scale < scalePyramidMetadata3D.getNumScales(); ++scale )
 		{
 			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
 			if ( n5.datasetExists( outputDatasetPath ) )
@@ -276,23 +287,23 @@ public class N5NonIsotropicScalePyramidSpark3D
 		}
 
 		final List< String > downsampledDatasets = new ArrayList<>();
-		for ( int scale = 1; scale < scalePyramidMetadata.getNumScales(); ++scale )
+		for ( int scale = 1; scale < scalePyramidMetadata3D.getNumScales(); ++scale )
 		{
-			final NonIsotropicMetadata scaleMetadata = scalePyramidMetadata.getScaleMetadata( scale );
+			final NonIsotropicMetadata3D scaleMetadata3D = scalePyramidMetadata3D.getScaleMetadata( scale );
 			final String outputDatasetPath = Paths.get( outputGroupPath, "s" + scale ).toString();
 
-			if ( scalePyramidMetadata.isPowerOfTwo || scalePyramidMetadata.getDependentDownsamplingFactor( scale ) == 1 )
+			if ( scalePyramidMetadata3D.isPowerOfTwo || scalePyramidMetadata3D.getDependentDownsamplingFactor( scale ) == 1 )
 			{
 				final String inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
 
 				// intermediate downsampling is not happening yet at this scale level, or is not required at all
-				final NonIsotropicMetadata previousScaleMetadata = scalePyramidMetadata.getScaleMetadata( scale - 1 );
-				final int[] relativeDownsamplingFactors = new int[ scaleMetadata.downsamplingFactors.length ];
-				for ( int d = 0; d < relativeDownsamplingFactors.length; ++d )
+				final NonIsotropicMetadata3D previousScaleMetadata3D = scalePyramidMetadata3D.getScaleMetadata( scale - 1 );
+				final int[] relativeDownsamplingFactors3D = new int[ scaleMetadata3D.downsamplingFactors.length ];
+				for ( int d = 0; d < relativeDownsamplingFactors3D.length; ++d )
 				{
-					if ( scaleMetadata.downsamplingFactors[ d ] % previousScaleMetadata.downsamplingFactors[ d ] != 0 )
+					if ( scaleMetadata3D.downsamplingFactors[ d ] % previousScaleMetadata3D.downsamplingFactors[ d ] != 0 )
 						throw new RuntimeException( "something went wrong, expected divisible downsampling factors" );
-					relativeDownsamplingFactors[ d ] = scaleMetadata.downsamplingFactors[ d ] / previousScaleMetadata.downsamplingFactors[ d ];
+					relativeDownsamplingFactors3D[ d ] = scaleMetadata3D.downsamplingFactors[ d ] / previousScaleMetadata3D.downsamplingFactors[ d ];
 				}
 
 				N5DownsamplerSpark.downsample(
@@ -300,14 +311,14 @@ public class N5NonIsotropicScalePyramidSpark3D
 						n5Supplier,
 						inputDatasetPath,
 						outputDatasetPath,
-						relativeDownsamplingFactors,
-						scaleMetadata.cellSize
+						appendDownsamplingFactorsForUnchangedDimensions( relativeDownsamplingFactors3D, fullScaleAttributes.getNumDimensions() ),
+						appendBlockSizesForUnchangedDimensions( scaleMetadata3D.cellSize, fullScaleCellSize )
 					);
 			}
 			else
 			{
 				final String inputDatasetPath;
-				if ( scalePyramidMetadata.getDependentDownsamplingFactor( scale - 1 ) == 1 )
+				if ( scalePyramidMetadata3D.getDependentDownsamplingFactor( scale - 1 ) == 1 )
 				{
 					// this is the first scale level where intermediate downsampling is required
 					inputDatasetPath = scale == 1 ? fullScaleDatasetPath : Paths.get( outputGroupPath, "s" + ( scale - 1 ) ).toString();
@@ -319,7 +330,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 				}
 
 				final String intermediateDatasetPath = Paths.get( intermediateGroupPath, "s" + scale ).toString();
-				final int[] intermediateDownsamplingFactors = scalePyramidMetadata.getIntermediateDownsamplingFactors( scale );
+				final int[] intermediateDownsamplingFactors3D = scalePyramidMetadata3D.getIntermediateDownsamplingFactors( scale );
 
 				// downsample and store in the intermediate export group
 				N5DownsamplerSpark.downsample(
@@ -327,13 +338,13 @@ public class N5NonIsotropicScalePyramidSpark3D
 						n5Supplier,
 						inputDatasetPath,
 						intermediateDatasetPath,
-						intermediateDownsamplingFactors,
-						scaleMetadata.cellSize
+						appendDownsamplingFactorsForUnchangedDimensions( intermediateDownsamplingFactors3D, fullScaleAttributes.getNumDimensions() ),
+						appendBlockSizesForUnchangedDimensions( scaleMetadata3D.cellSize, fullScaleCellSize )
 					);
 
-				final int[] relativeDownsamplingFactors = new int[ intermediateDownsamplingFactors.length ];
-				for ( int d = 0; d < relativeDownsamplingFactors.length; ++d )
-					relativeDownsamplingFactors[ d ] = intermediateDownsamplingFactors[ d ] == 1 ? scaleMetadata.downsamplingFactors[ d ] : 1;
+				final int[] relativeDownsamplingFactors3D = new int[ intermediateDownsamplingFactors3D.length ];
+				for ( int d = 0; d < relativeDownsamplingFactors3D.length; ++d )
+					relativeDownsamplingFactors3D[ d ] = intermediateDownsamplingFactors3D[ d ] == 1 ? scaleMetadata3D.downsamplingFactors[ d ] : 1;
 
 				// downsample and store in the output group
 				N5DownsamplerSpark.downsample(
@@ -341,8 +352,8 @@ public class N5NonIsotropicScalePyramidSpark3D
 						n5Supplier,
 						intermediateDatasetPath,
 						outputDatasetPath,
-						relativeDownsamplingFactors,
-						scaleMetadata.cellSize
+						appendDownsamplingFactorsForUnchangedDimensions( relativeDownsamplingFactors3D, fullScaleAttributes.getNumDimensions() ),
+						appendBlockSizesForUnchangedDimensions( scaleMetadata3D.cellSize, fullScaleCellSize )
 					);
 			}
 
@@ -351,10 +362,87 @@ public class N5NonIsotropicScalePyramidSpark3D
 			downsampledDatasets.add( outputDatasetPath );
 		}
 
-		if ( !scalePyramidMetadata.isPowerOfTwo )
+		if ( !scalePyramidMetadata3D.isPowerOfTwo )
 			N5RemoveSpark.remove( sparkContext, n5Supplier, intermediateGroupPath );
 
 		return downsampledDatasets;
+	}
+
+	/**
+	 * Returns a new array containing the first 3 entries of the given dimensions.
+	 *
+	 * @param dimensions
+	 * @return XYZ dimensions
+	 */
+	private static long[] getDimensions3D( final long[] dimensions )
+	{
+		if ( dimensions.length < 3 )
+			throw new IllegalArgumentException( "Expected dimensions array of length at least 3, got " + dimensions.length );
+
+		final long[] dimensions3D = new long[ 3 ];
+		System.arraycopy( dimensions, 0, dimensions3D, 0, dimensions3D.length );
+
+		return dimensions3D;
+	}
+
+	/**
+	 * Returns a new array containing the first 3 entries of the given block sizes.
+	 *
+	 * @param blockSize
+	 * @return XYZ block sizes
+	 */
+	private static int[] getBlockSizes3D( final int[] blockSizes )
+	{
+		if ( blockSizes.length < 3 )
+			throw new IllegalArgumentException( "Expected blockSizes array of length at least 3, got " + blockSizes.length );
+
+		final int[] blockSizes3D = new int[ 3 ];
+		System.arraycopy( blockSizes, 0, blockSizes3D, 0, blockSizes3D.length );
+
+		return blockSizes3D;
+	}
+
+	/**
+	 * Fills the downsampling factors for the rest of the dimensions with '1', so that only XYZ dimensions are downsampled, and the rest of the dimensions are written out as is.
+	 *
+	 * @param downsamplingFactors3D
+	 * @param numFullDimensions
+	 * @return downsampling factors for all dimensions
+	 */
+	private static int[] appendDownsamplingFactorsForUnchangedDimensions( final int[] downsamplingFactors3D, final int numFullDimensions )
+	{
+		if ( downsamplingFactors3D.length != 3 )
+			throw new IllegalArgumentException( "Expected downsamplingFactors3D array of length 3, got " + downsamplingFactors3D.length );
+
+		if ( numFullDimensions < 3 )
+			throw new IllegalArgumentException( "Expected numFullDimensions to be at least 3, got " + numFullDimensions );
+
+		final int[] fullDownsamplingFactors = new int[ numFullDimensions ];
+		Arrays.fill( fullDownsamplingFactors, 1 );
+		System.arraycopy( downsamplingFactors3D, 0, fullDownsamplingFactors, 0, downsamplingFactors3D.length );
+
+		return fullDownsamplingFactors;
+	}
+
+	/**
+	 * Fills the block sizes for the rest of the dimensions with the same as in the input data.
+	 *
+	 * @param blockSizes3D
+	 * @param inputDataBlockSizes
+	 * @return block sizes for all dimensions
+	 */
+	private static int[] appendBlockSizesForUnchangedDimensions( final int[] blockSizes3D, final int[] inputDataBlockSizes )
+	{
+		if ( blockSizes3D.length != 3 )
+			throw new IllegalArgumentException( "Expected blockSizes3D array of length 3, got " + blockSizes3D.length );
+
+		if ( inputDataBlockSizes.length < 3 )
+			throw new IllegalArgumentException( "Expected inputDataBlockSizes array of length at least 3, got " + inputDataBlockSizes.length );
+
+		final int[] fullBlockSizes = inputDataBlockSizes.clone();
+		System.arraycopy( blockSizes3D, 0, fullBlockSizes, 0, blockSizes3D.length );
+
+		return fullBlockSizes;
 	}
 
 
@@ -363,7 +451,7 @@ public class N5NonIsotropicScalePyramidSpark3D
 		final Arguments parsedArgs = new Arguments( args );
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
-				.setAppName( "N5NonIsotropicScalePyramidSpark3D" )
+				.setAppName( "N5NonIsotropicScalePyramidSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
