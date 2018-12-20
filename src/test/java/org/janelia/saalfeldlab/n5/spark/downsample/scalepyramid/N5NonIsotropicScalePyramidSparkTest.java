@@ -173,6 +173,52 @@ public class N5NonIsotropicScalePyramidSparkTest
 	}
 
 	@Test
+	public void testNonIsotropicDownsampling4D() throws IOException
+	{
+		final N5Writer n5 = n5Supplier.get();
+		createDataset( n5, new long[] { 4, 4, 4, 2 }, new int[] { 2, 2, 1, 1 } );
+
+		final List< String > downsampledDatasets = N5NonIsotropicScalePyramidSpark.downsampleNonIsotropicScalePyramid(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				new double[] { 0.1, 0.1, 0.2 },
+				false
+			);
+
+		final String downsampledIntermediateDatasetPath = Paths.get( "s1" ).toString();
+		final String downsampledLastDatasetPath = Paths.get( "s2" ).toString();
+		Assert.assertArrayEquals( new String[] { downsampledIntermediateDatasetPath, downsampledLastDatasetPath }, downsampledDatasets.toArray( new String[ 0 ] ) );
+
+		Assert.assertTrue(
+				Paths.get( basePath ).toFile().listFiles( File::isDirectory ).length == 3 &&
+				n5.datasetExists( datasetPath ) &&
+				n5.datasetExists( downsampledIntermediateDatasetPath ) &&
+				n5.datasetExists( downsampledLastDatasetPath )
+			);
+
+		Assert.assertArrayEquals( new int[] { 2, 2, 1, 1 }, n5.getAttribute( downsampledIntermediateDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
+		Assert.assertArrayEquals( new int[] { 4, 4, 2, 1 }, n5.getAttribute( downsampledLastDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
+
+		final DatasetAttributes downsampledAttributes = n5.getDatasetAttributes( downsampledLastDatasetPath );
+		Assert.assertArrayEquals( new long[] { 1, 1, 2, 2 }, downsampledAttributes.getDimensions() );
+		Assert.assertArrayEquals( new int[] { 2, 2, 2, 1 }, downsampledAttributes.getBlockSize() );
+
+		Assert.assertArrayEquals(
+				new int[] {
+						( int ) Util.round( ( 32 * 33 / 2 ) / 32. ),
+						( int ) Util.round( ( 32 * 33 / 2 + 32 * 32 ) / 32. ),
+
+						( int ) Util.round( ( 32 * 33 / 2 + 32 * 64 ) / 32. ),
+						( int ) Util.round( ( 32 * 33 / 2 + 32 * 96 ) / 32. )
+				},
+				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) )
+			);
+
+		cleanup( n5 );
+	}
+
+	@Test
 	public void testScalePyramidMetadata_Isotropic()
 	{
 		NonIsotropicMetadata3D scaleMetadata;
