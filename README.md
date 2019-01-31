@@ -297,8 +297,8 @@ spark-janelia/n5-slice-tiff.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-d <slice dimension>]
+[-c <tiff compression>]
 ```
 </details>
 
@@ -310,14 +310,16 @@ spark-local/n5-slice-tiff.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-d <slice dimension>]
+[-c <tiff compression>]
 ```
 </details>
 
 The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
-The following TIFF compression modes are supported: `-c lzw` (default) and `-c none`.<br/>
 The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to generate YZ, XZ, or XY slices respectively.
+
+Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
+**WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
 
 
 ### N5 max intensity projection
@@ -331,8 +333,8 @@ spark-janelia/n5-mips.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-m <mip step>]
+[-c <tiff compression>]
 ```
 </details>
 
@@ -344,14 +346,16 @@ spark-local/n5-mips.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-m <mip step>]
+[-c <tiff compression>]
 ```
 </details>
 
 The tool generates max intensity projections in X/Y/Z directions and saves them as TIFF images in the specified output folder.<br/>
 By default the entire volume is used to create a single MIP in X/Y/Z. You can specify MIP step as a number of cells included in a single MIP (e.g. `-m 5,5,3`).<br/>
-The following TIFF compression modes are supported: `-c lzw` and `-c none`.
+
+Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
+**WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
 
 
 ### N5 remove
