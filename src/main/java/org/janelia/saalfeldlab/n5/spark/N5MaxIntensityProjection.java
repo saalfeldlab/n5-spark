@@ -335,8 +335,9 @@ public class N5MaxIntensityProjection
 		private String outputPath;
 
 		@Option(name = "-c", aliases = { "--tiffCompression" }, required = false,
-				usage = "Tiff compression (LZW or NONE).")
-		private TiffCompression tiffCompression = TiffCompression.LZW;
+				usage = "Tiff compression (not used by default)."
+						+ "WARNING: LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.")
+		private TiffCompression tiffCompression = TiffCompression.NONE;
 
 		@Option(name = "-m", aliases = { "--mipCellsStep" }, required = false,
 				usage = "Number of cells used for a single MIP image (MIP step in X/Y/Z). By default the MIP is computed through the entire volume.")
