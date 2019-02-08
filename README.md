@@ -1,5 +1,5 @@
 # n5-spark
-A small library for processing N5 datasets in parallel using Apache Spark cluster.
+A small library for processing [N5](https://github.com/saalfeldlab/n5) datasets on an Apache Spark cluster.
 
 Supported operations:
 * resaving using different blocksize / datatype / compression
@@ -21,7 +21,12 @@ If you have already cloned the repository, run this after cloning to fetch the s
 git submodule update --init --recursive
 ```
 
-To use as a standalone tool, compile the package for the desired execution environment:
+`n5-spark` for use on local machine is available on conda:
+```
+conda -c hanslovsky install n5-spark
+```
+
+Alternatively, to use as a standalone tool, compile the package for the desired execution environment:
 
 <details>
 <summary><b>Compile for running on Janelia cluster</b></summary>
@@ -29,6 +34,12 @@ To use as a standalone tool, compile the package for the desired execution envir
 ```bash
 python build.py
 ```
+
+While OpenJDK and Maven's surefire plugin have this joint [bug](https://stackoverflow.com/questions/53010200/maven-surefire-could-not-find-forkedbooter-class), you will have to build with
+```bash
+_JAVA_OPTIONS=-Djdk.net.URLClassPath.disableClassPathURLCheck=true ./build.py
+```
+
 </details>
 
 <details>
@@ -36,6 +47,11 @@ python build.py
 
 ```bash
 python build-spark-local.py
+```
+
+While OpenJDK and Maven's surefire plugin have this joint [bug](https://stackoverflow.com/questions/53010200/maven-surefire-could-not-find-forkedbooter-class), you will have to build with
+```bash
+_JAVA_OPTIONS=-Djdk.net.URLClassPath.disableClassPathURLCheck=true ./build-spark-local.py
 ```
 </details>
 <br/>
@@ -237,13 +253,14 @@ Generates a scale pyramid:
   ```
   </details>
   
-* <b>3D non-isotropic scale pyramid</b>: generates a scale pyramid of a dataset with different resolution in X/Y and Z. Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible. The pixel resolution parameter is given in um (microns) formatted as a comma-separated list, for example, `0.097,0.097,0.18`.<br/>
-If the optional argument `-p` is provided, all downsampling factors are forced to be powers of two. This mode is faster as it does not require any intermediate downsampling steps.
+* <b>Non-isotropic scale pyramid</b>: generates a scale pyramid of a dataset with different resolution in X/Y and Z. Depending on whether the resolution is better in X/Y than in Z or vice versa, the downsampling factors are adjusted to make the scale levels as close to isotropic as possible. The pixel resolution parameter is given in um (microns) formatted as a comma-separated list, for example, `0.097,0.097,0.18`.<br/>
+If the optional argument `-p` is provided, all downsampling factors are forced to be powers of two. This mode is faster as it does not require any intermediate downsampling steps.<br/>
+Only the first 3 dimensions of the input data are downsampled. If the input data is of higher dimensionality than 3, the rest of the dimensions are written out as is.
   <details>
   <summary><b>Run on Janelia cluster</b></summary>
   
   ```bash
-  spark-janelia/n5-scale-pyramid-nonisotropic-3d.py 
+  spark-janelia/n5-scale-pyramid-nonisotropic.py 
   <number of cluster nodes> 
   -n <path to n5 root> 
   -i <input dataset> 
@@ -256,7 +273,7 @@ If the optional argument `-p` is provided, all downsampling factors are forced t
   <summary><b>Run on local machine</b></summary>
   
   ```bash
-  spark-local/n5-scale-pyramid-nonisotropic-3d.py 
+  spark-local/n5-scale-pyramid-nonisotropic.py 
   -n <path to n5 root> 
   -i <input dataset> 
   -r <pixel resolution> 
@@ -280,8 +297,8 @@ spark-janelia/n5-slice-tiff.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-d <slice dimension>]
+[-c <tiff compression>]
 ```
 </details>
 
@@ -293,14 +310,16 @@ spark-local/n5-slice-tiff.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-d <slice dimension>]
+[-c <tiff compression>]
 ```
 </details>
 
 The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
-The following TIFF compression modes are supported: `-c lzw` (default) and `-c none`.<br/>
 The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to generate YZ, XZ, or XY slices respectively.
+
+Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
+**WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
 
 
 ### N5 max intensity projection
@@ -314,8 +333,8 @@ spark-janelia/n5-mips.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-m <mip step>]
+[-c <tiff compression>]
 ```
 </details>
 
@@ -327,14 +346,16 @@ spark-local/n5-mips.py
 -n <path to n5 root> 
 -i <input dataset> 
 -o <output path> 
-[-c <tiff compression>]
 [-m <mip step>]
+[-c <tiff compression>]
 ```
 </details>
 
 The tool generates max intensity projections in X/Y/Z directions and saves them as TIFF images in the specified output folder.<br/>
 By default the entire volume is used to create a single MIP in X/Y/Z. You can specify MIP step as a number of cells included in a single MIP (e.g. `-m 5,5,3`).<br/>
-The following TIFF compression modes are supported: `-c lzw` and `-c none`.
+
+Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
+**WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
 
 
 ### N5 remove

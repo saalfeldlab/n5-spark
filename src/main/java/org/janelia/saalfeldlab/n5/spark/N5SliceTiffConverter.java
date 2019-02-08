@@ -178,8 +178,9 @@ public class N5SliceTiffConverter
 		private String outputPath;
 
 		@Option(name = "-c", aliases = { "--tiffCompression" }, required = false,
-				usage = "Tiff compression")
-		private TiffCompression tiffCompression = TiffCompression.LZW;
+				usage = "Tiff compression (not used by default)."
+						+ "WARNING: LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.")
+		private TiffCompression tiffCompression = TiffCompression.NONE;
 
 		@Option(name = "-d", aliases = { "--sliceDimension" }, required = false,
 				usage = "Dimension to slice over as a string")
