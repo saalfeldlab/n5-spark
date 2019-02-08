@@ -122,7 +122,7 @@ public class N5NonIsotropicScalePyramidSpark
 				final int dependentOptimalCellSize = ( int ) Math.round( ( long ) dependentFullScaleOptimalCellSize * mainDownsamplingFactor / ( double ) dependentDownsamplingFactor );
 				final int dependentMultipleCellSize = ( int ) Math.round( dependentOptimalCellSize / ( double ) dependentPreviousCellSize ) * dependentPreviousCellSize;
 				final int dependentMaxCellSize = Math.max( ( int ) Math.round( dependentFullScaleOptimalCellSize * pixelResolutionRatio ), mainCellSize );
-				final int dependentAdjustedCellSize = Math.min( dependentMultipleCellSize, ( dependentMaxCellSize / dependentPreviousCellSize ) * dependentPreviousCellSize );
+				final int dependentAdjustedCellSize = Math.max( dependentPreviousCellSize, Math.min( dependentMultipleCellSize, ( dependentMaxCellSize / dependentPreviousCellSize ) * dependentPreviousCellSize ) );
 				final int[] downsampledCellSize;
 				if ( mainDimension == MainDimension.XY )
 					downsampledCellSize = new int[] { fullScaleCellSize[ 0 ], fullScaleCellSize[ 1 ], dependentAdjustedCellSize };
