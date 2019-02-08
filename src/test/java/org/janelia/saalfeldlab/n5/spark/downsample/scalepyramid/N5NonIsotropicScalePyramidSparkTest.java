@@ -785,4 +785,88 @@ public class N5NonIsotropicScalePyramidSparkTest
 		Assert.assertArrayEquals( new int[] { 6, 6, 8 }, scaleMetadata.cellSize );
 		Assert.assertArrayEquals( new int[] { 16, 16, 64 }, scaleMetadata.downsamplingFactors );
 	}
+
+	@Test
+	public void testScalePyramidMetadata_XY_LargerThanOptimalBlockSize()
+	{
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 256, 256, 128 }, new int[] { 128, 128, 64 }, new double[] { 1, 1, 10 }, false );
+		Assert.assertEquals( 9, scalePyramidMetadata.getNumScales() );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 1 );
+		Assert.assertArrayEquals( new long[] { 128, 128, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 2 );
+		Assert.assertArrayEquals( new long[] { 64, 64, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 4, 4, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 3 );
+		Assert.assertArrayEquals( new long[] { 32, 32, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 8, 8, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 4 );
+		Assert.assertArrayEquals( new long[] { 16, 16, 64 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 16, 16, 2 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 5 );
+		Assert.assertArrayEquals( new long[] { 8, 8, 42 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 32, 32, 3 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 6 );
+		Assert.assertArrayEquals( new long[] { 4, 4, 21 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 64, 64, 6 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 7 );
+		Assert.assertArrayEquals( new long[] { 2, 2, 9 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 128, 128, 13 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 8 );
+		Assert.assertArrayEquals( new long[] { 1, 1, 4 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 128 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 256, 256, 26 }, scaleMetadata.downsamplingFactors );
+	}
+
+	@Test
+	public void testScalePyramidMetadata_Z_LargerThanOptimalBlockSize()
+	{
+		NonIsotropicMetadata3D scaleMetadata;
+		final NonIsotropicScalePyramidMetadata3D scalePyramidMetadata = new NonIsotropicScalePyramidMetadata3D( new long[] { 256, 256, 128 }, new int[] { 128, 128, 64 }, new double[] { 10, 10, 1 }, false );
+		Assert.assertEquals( 8, scalePyramidMetadata.getNumScales() );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 0 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 128 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 1 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 1 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 64 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 2 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 2 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 32 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 4 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 3 );
+		Assert.assertArrayEquals( new long[] { 256, 256, 16 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 1, 1, 8 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 4 );
+		Assert.assertArrayEquals( new long[] { 128, 128, 8 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 2, 2, 16 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 5 );
+		Assert.assertArrayEquals( new long[] { 85, 85, 4 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 3, 3, 32 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 6 );
+		Assert.assertArrayEquals( new long[] { 42, 42, 2 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 6, 6, 64 }, scaleMetadata.downsamplingFactors );
+		scaleMetadata = scalePyramidMetadata.getScaleMetadata( 7 );
+		Assert.assertArrayEquals( new long[] { 19, 19, 1 }, scaleMetadata.dimensions );
+		Assert.assertArrayEquals( new int[] { 128, 128, 64 }, scaleMetadata.cellSize );
+		Assert.assertArrayEquals( new int[] { 13, 13, 128 }, scaleMetadata.downsamplingFactors );
+	}
 }
