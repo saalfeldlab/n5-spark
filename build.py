@@ -17,6 +17,6 @@ def rename_jar(new_jar_suffix):
 
 if __name__ == '__main__':
 	base_folder = os.path.dirname(os.path.abspath(__file__))
-	build_args = ['-P', 'fatjar,spark-provided']
+	build_args = ['-Djdk.net.URLClassPath.disableClassPathURLCheck=true', '-P', 'fatjar,spark-provided']
 	run_build(base_folder, build_args)
 	rename_jar('-provided')
