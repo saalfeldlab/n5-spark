@@ -15,6 +15,90 @@
 	<name>N5 Spark</name>
 	<description>N5 Spark-based processing tools</description>
 
+	<url>https://github.com/saalfeldlab/n5-spark</url>
+	<inceptionYear>2017</inceptionYear>
+	<organization>
+		<name>Saalfeld Lab</name>
+		<url>http://saalfeldlab.janelia.org/</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>Simplified BSD License</name>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<mailingLists>
+		<mailingList>
+			<name>ImageJ Forum</name>
+			<archive>http://forum.imagej.net/</archive>
+		</mailingList>
+	</mailingLists>
+
+	<scm>
+		<connection>scm:git:git://github.com/saalfedllab/n5-spark</connection>
+		<developerConnection>scm:git:git@github.com:saalfeldlab/n5-spark</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/saalfeldlab/n5-spark</url>
+	</scm>
+
+	<issueManagement>
+		<system>GitHub</system>
+		<url>https://github.com/saalfedlab/n5-spark/issues</url>
+	</issueManagement>
+
+	<ciManagement>
+		<system>None</system>
+	</ciManagement>
+
+	<properties>
+		<allowedDuplicateClasses>*</allowedDuplicateClasses>
+
+		<package-name>org.janelia.saalfeldlab</package-name>
+		<license.licenseName>bsd_2</license.licenseName>
+		<license.projectName>N5 Spark</license.projectName>
+		<license.organizationName>Saalfeld Lab</license.organizationName>
+		<license.copyrightOwners>Igor Pisarev, Stephan Saalfeld</license.copyrightOwners>
+	</properties>
+
+	<developers>
+		<developer>
+			<id>igorpisarev</id>
+			<name>Igor Pisarev</name>
+			<url>http://imagej.net/User:Pisarevi</url>
+			<roles>
+				<role>founder</role>
+				<role>lead</role>
+				<role>developer</role>
+				<role>debugger</role>
+				<role>reviewer</role>
+				<role>support</role>
+				<role>maintainer</role>
+			</roles>
+		</developer>
+	</developers>
+
+	<contributors>
+		<contributor>
+			<name>Stephan Saalfeld</name>
+			<properties>
+				<id>axtimwalde</id>
+			</properties>
+		</contributor>
+		<contributor>
+			<name>Philipp Hanslovsky</name>
+			<properties>
+				<id>hanslovsky</id>
+			</properties>
+		</contributor>
+		<contributor>
+			<name>Neil Thistlethwaite</name>
+			<properties>
+				<id>nthistle</id>
+			</properties>
+		</contributor>
+	</contributors>
+
 	<repositories>
 		<repository>
 			<id>imagej.public</id>
@@ -25,10 +109,6 @@
 			<url>https://saalfeldlab.github.io/maven</url>
 		</repository>
 	</repositories>
-
-	<properties>
-		<scijava.jvm.version>1.8</scijava.jvm.version>
-	</properties>
 
 	<profiles>
 		<profile>
@@ -149,14 +229,6 @@
 	<build>
 		<pluginManagement>
 			<plugins>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-enforcer-plugin</artifactId>
-					<configuration>
-						<!-- Don't fail on duplicate classes. -->
-						<fail>false</fail>
-					</configuration>
-				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-javadoc-plugin</artifactId>
