@@ -36,7 +36,7 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/saalfedllab/n5-spark</connection>
+		<connection>scm:git:git://github.com/saalfeldlab/n5-spark</connection>
 		<developerConnection>scm:git:git@github.com:saalfeldlab/n5-spark</developerConnection>
 		<tag>HEAD</tag>
 		<url>https://github.com/saalfeldlab/n5-spark</url>
@@ -44,11 +44,12 @@
 
 	<issueManagement>
 		<system>GitHub</system>
-		<url>https://github.com/saalfedlab/n5-spark/issues</url>
+		<url>https://github.com/saalfeldlab/n5-spark/issues</url>
 	</issueManagement>
 
 	<ciManagement>
-		<system>None</system>
+		<system>Travis CI</system>
+		<url>https://travis-ci.org/saalfeldlab/n5-spark</url>
 	</ciManagement>
 
 	<properties>
