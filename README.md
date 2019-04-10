@@ -1,4 +1,4 @@
-# n5-spark
+# N5 Spark [![Build Status](https://travis-ci.org/saalfeldlab/n5-spark.svg?branch=master)](https://travis-ci.org/saalfeldlab/n5-spark)
 A small library for processing [N5](https://github.com/saalfeldlab/n5) datasets on an Apache Spark cluster.
 
 Supported operations:
