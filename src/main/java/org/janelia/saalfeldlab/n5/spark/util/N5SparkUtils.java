@@ -1,12 +1,17 @@
 package org.janelia.saalfeldlab.n5.spark.util;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.imglib2.N5CellLoader;
 
+import net.imglib2.FinalInterval;
+import net.imglib2.Interval;
 import net.imglib2.cache.Cache;
 import net.imglib2.cache.CacheLoader;
 import net.imglib2.cache.LoaderCache;
@@ -30,10 +35,35 @@ import net.imglib2.type.numeric.integer.UnsignedLongType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.util.Intervals;
+import scala.Tuple2;
 
 public class N5SparkUtils
 {
 	private N5SparkUtils() { }
+
+	public static List< Tuple2< long[], long[] > > toMinMaxTuples( final List< ? extends Interval > intervals )
+	{
+		return new ArrayList<>(
+				intervals.stream().map( N5SparkUtils::toMinMaxTuple ).collect( Collectors.toList() )
+			);
+	}
+
+	public static Tuple2< long[], long[] > toMinMaxTuple( final Interval interval )
+	{
+		return new Tuple2<>(
+				Intervals.minAsLongArray( interval ),
+				Intervals.maxAsLongArray( interval )
+			);
+	}
+
+	public static Interval toInterval( final Tuple2< long[], long[] > minMaxTuple )
+	{
+		return new FinalInterval(
+				minMaxTuple._1(),
+				minMaxTuple._2()
+			);
+	}
 
 	/**
 	 * Open an N5 dataset as a memory cached {@link LazyCellImg} with bounded cache size.

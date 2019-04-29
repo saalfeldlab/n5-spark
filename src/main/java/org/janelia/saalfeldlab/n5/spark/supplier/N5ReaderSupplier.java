@@ -1,4 +1,4 @@
-package org.janelia.saalfeldlab.n5.spark;
+package org.janelia.saalfeldlab.n5.spark.supplier;
 
 import java.io.IOException;
 import java.io.Serializable;

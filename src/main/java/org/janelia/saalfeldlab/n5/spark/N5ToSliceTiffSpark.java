@@ -3,7 +3,6 @@ package org.janelia.saalfeldlab.n5.spark;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -13,7 +12,9 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
+import org.janelia.saalfeldlab.n5.spark.util.SliceDimension;
 import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
 import org.janelia.saalfeldlab.n5.spark.util.TiffUtils.TiffCompression;
 import org.kohsuke.args4j.CmdLineException;
@@ -37,8 +38,10 @@ import net.imglib2.type.NativeType;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 
-public class N5SliceTiffConverter
+public class N5ToSliceTiffSpark
 {
+	private static final int MAX_PARTITIONS = 15000;
+
 	/**
 	 * Converts a given dataset into slice TIFF series.
 	 *
@@ -56,13 +59,13 @@ public class N5SliceTiffConverter
 	 * 			Dimension to slice over
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > > void convertToSliceTiff(
+	public static < T extends NativeType< T > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
 			final String outputPath,
 			final TiffCompression compression,
-			final int sliceDimension ) throws IOException
+			final SliceDimension sliceDimension ) throws IOException
 	{
 		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
@@ -73,21 +76,21 @@ public class N5SliceTiffConverter
 
 		final int[] sliceDimensionMap = new int[ 2 ];
 		for ( int i = 0, d = 0; d < 3; ++d )
-			if ( d != sliceDimension )
+			if ( d != sliceDimension.asInteger() )
 				sliceDimensionMap[ i++ ] = d;
 		final long[] sliceDimensions = new long[] { dimensions[ sliceDimensionMap[ 0 ] ], dimensions[ sliceDimensionMap[ 1 ] ] };
 
-		final List< Long > sliceCoords = LongStream.range( 0, dimensions[ sliceDimension ] ).boxed().collect( Collectors.toList() );
+		final List< Long > sliceCoords = LongStream.range( 0, dimensions[ sliceDimension.asInteger() ] ).boxed().collect( Collectors.toList() );
 
 		Paths.get( outputPath ).toFile().mkdirs();
 
-		sparkContext.parallelize( sliceCoords, sliceCoords.size() ).foreach( slice ->
+		sparkContext.parallelize( sliceCoords, Math.min( sliceCoords.size(), MAX_PARTITIONS ) ).foreach( slice ->
 			{
 				final N5Reader n5Local = n5Supplier.get();
 				final CachedCellImg< T, ? > cellImg = N5SparkUtils.openWithBoundedCache( n5Local, datasetPath, 1 );
 				final CellGrid cellGrid = cellImg.getCellGrid();
 				final long[] slicePos = new long[ cellImg.numDimensions() ], cellPos = new long[ cellImg.numDimensions() ];
-				slicePos[ sliceDimension ] = slice;
+				slicePos[ sliceDimension.asInteger() ] = slice;
 				cellGrid.getCellPosition( slicePos, cellPos );
 
 				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory<>( Util.getTypeFromInterval( cellImg ) ).create( sliceDimensions );
@@ -96,7 +99,7 @@ public class N5SliceTiffConverter
 				final long[] cellGridMin = new long[ cellImg.numDimensions() ], cellGridMax = new long[ cellImg.numDimensions() ];
 				cells.min( cellGridMin );
 				cells.max( cellGridMax );
-				cellGridMin[ sliceDimension ] = cellGridMax[ sliceDimension ] = cellPos[ sliceDimension ];
+				cellGridMin[ sliceDimension.asInteger() ] = cellGridMax[ sliceDimension.asInteger() ] = cellPos[ sliceDimension.asInteger() ];
 				final Interval cellGridInterval = new FinalInterval( cellGridMin, cellGridMax );
 
 				final RandomAccessibleInterval< ? extends Cell< ? > > sliceCells = Views.interval( cells, cellGridInterval );
@@ -112,7 +115,7 @@ public class N5SliceTiffConverter
 					cell.dimensions( cellDimensions );
 					for ( int d = 0; d < cellImg.numDimensions(); ++d )
 						cellMax[ d ] = cellMin[ d ] + cellDimensions[ d ] - 1;
-					cellMin[ sliceDimension ] = cellMax[ sliceDimension ] = slice;
+					cellMin[ sliceDimension.asInteger() ] = cellMax[ sliceDimension.asInteger() ] = slice;
 					final Interval sourceInterval = new FinalInterval( cellMin, cellMax );
 
 					final Interval targetInterval = new FinalInterval(
@@ -141,12 +144,12 @@ public class N5SliceTiffConverter
 			System.exit( 1 );
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
-				.setAppName( "N5SliceTiffSpark" )
+				.setAppName( "N5ToSliceTiffSpark" )
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
 			final N5ReaderSupplier n5Supplier = () -> new N5FSReader( parsedArgs.getN5Path() );
-			convertToSliceTiff(
+			convert(
 					sparkContext,
 					n5Supplier,
 					parsedArgs.getInputDatasetPath(),
@@ -162,8 +165,6 @@ public class N5SliceTiffConverter
 	private static class Arguments implements Serializable
 	{
 		private static final long serialVersionUID = -2719585735604464792L;
-
-		private static final String[] DIMENSION_STR = new String[] { "x", "y", "z" };
 
 		@Option(name = "-n", aliases = { "--n5Path" }, required = true,
 				usage = "Path to an N5 container")
@@ -184,7 +185,7 @@ public class N5SliceTiffConverter
 
 		@Option(name = "-d", aliases = { "--sliceDimension" }, required = false,
 				usage = "Dimension to slice over as a string")
-		private String sliceDimensionStr = "z";
+		private SliceDimension sliceDimension = SliceDimension.Z;
 
 		private boolean parsedSuccessfully = false;
 
@@ -209,13 +210,6 @@ public class N5SliceTiffConverter
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputPath() { return outputPath; }
 		public TiffCompression getTiffCompression() { return tiffCompression; }
-
-		public int getSliceDimension()
-		{
-			for ( int d = 0; d < DIMENSION_STR.length; ++d )
-				if ( DIMENSION_STR[ d ].equalsIgnoreCase( sliceDimensionStr ) )
-					return d;
-			throw new IllegalArgumentException( "Illegal slice dimension value. Possible values are: " + Arrays.toString( DIMENSION_STR ) );
-		}
+		public SliceDimension getSliceDimension() { return sliceDimension; }
 	}
 }

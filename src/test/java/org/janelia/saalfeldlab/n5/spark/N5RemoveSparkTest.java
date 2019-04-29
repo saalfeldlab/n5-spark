@@ -13,6 +13,7 @@ import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.RawCompression;
 import org.janelia.saalfeldlab.n5.ShortArrayDataBlock;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;

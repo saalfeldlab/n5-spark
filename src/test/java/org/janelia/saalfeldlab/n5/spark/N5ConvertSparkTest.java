@@ -19,6 +19,7 @@ import org.janelia.saalfeldlab.n5.RawCompression;
 import org.janelia.saalfeldlab.n5.XzCompression;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.N5ConvertSpark.ClampingConverter;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;

@@ -15,6 +15,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
 import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
 import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
@@ -43,7 +44,7 @@ import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 import scala.Tuple2;
 
-public class N5MaxIntensityProjection
+public class N5MaxIntensityProjectionSpark
 {
 	private static class MipKey
 	{
