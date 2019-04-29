@@ -3,9 +3,7 @@ package org.janelia.saalfeldlab.n5.spark;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -13,20 +11,18 @@ import java.util.stream.LongStream;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.Bzip2Compression;
 import org.janelia.saalfeldlab.n5.Compression;
 import org.janelia.saalfeldlab.n5.DataType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.GzipCompression;
-import org.janelia.saalfeldlab.n5.Lz4Compression;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Reader;
 import org.janelia.saalfeldlab.n5.N5Writer;
-import org.janelia.saalfeldlab.n5.RawCompression;
-import org.janelia.saalfeldlab.n5.XzCompression;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.util.N5Compression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -40,16 +36,6 @@ import net.imglib2.converter.Converters;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.ByteType;
-import net.imglib2.type.numeric.integer.IntType;
-import net.imglib2.type.numeric.integer.LongType;
-import net.imglib2.type.numeric.integer.ShortType;
-import net.imglib2.type.numeric.integer.UnsignedByteType;
-import net.imglib2.type.numeric.integer.UnsignedIntType;
-import net.imglib2.type.numeric.integer.UnsignedLongType;
-import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.type.numeric.real.DoubleType;
-import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
 import net.imglib2.util.ValuePair;
@@ -167,7 +153,7 @@ public class N5ConvertSpark
 			}
 			else
 			{
-				final I inputType = dataTypeToImglibType( inputDataType );
+				final I inputType = N5Utils.forDataType( inputDataType );
 				minInputValue = inputType.getMinValue();
 				maxInputValue = inputType.getMaxValue();
 			}
@@ -181,7 +167,7 @@ public class N5ConvertSpark
 		}
 		else
 		{
-			final O outputType = dataTypeToImglibType( outputDataType );
+			final O outputType = N5Utils.forDataType( outputDataType );
 			minOutputValue = outputType.getMinValue();
 			maxOutputValue = outputType.getMaxValue();
 		}
@@ -254,7 +240,7 @@ public class N5ConvertSpark
 				outputBlockMax[ d ] = outputBlockMin[ d ] + outputBlockDimensions[ d ] - 1;
 			final Interval outputBlockInterval = new FinalInterval( outputBlockMin, outputBlockMax );
 
-			final O outputType = dataTypeToImglibType( outputDataType );
+			final O outputType = N5Utils.forDataType( outputDataType );
 
 			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
 			final RandomAccessible< O > convertedSource;
@@ -330,7 +316,7 @@ public class N5ConvertSpark
 				adjustedBlockMax[ d ] = adjustedBlockMin[ d ] + adjustedBlockDimensions[ d ] - 1;
 			final Interval adjustedBlockInterval = new FinalInterval( adjustedBlockMin, adjustedBlockMax );
 
-			final O outputType = dataTypeToImglibType( outputDataType );
+			final O outputType = N5Utils.forDataType( outputDataType );
 
 			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
 			final RandomAccessible< O > convertedSource;
@@ -368,36 +354,6 @@ public class N5ConvertSpark
 					outputType.createVariable()
 				);
 		} );
-	}
-
-	@SuppressWarnings( "unchecked" )
-	private static < T extends NativeType< T > & RealType< T > > T dataTypeToImglibType( final DataType dataType )
-	{
-		switch ( dataType )
-		{
-		case UINT8:
-			return ( T ) new UnsignedByteType();
-		case INT8:
-			return ( T ) new ByteType();
-		case UINT16:
-			return ( T ) new UnsignedShortType();
-		case INT16:
-			return ( T ) new ShortType();
-		case UINT32:
-			return ( T ) new UnsignedIntType();
-		case INT32:
-			return ( T ) new IntType();
-		case UINT64:
-			return ( T ) new UnsignedLongType();
-		case INT64:
-			return ( T ) new LongType();
-		case FLOAT32:
-			return ( T ) new FloatType();
-		case FLOAT64:
-			return ( T ) new DoubleType();
-		default:
-			throw new IllegalArgumentException( "Type " + dataType.name() + " not supported!" );
-		}
 	}
 
 	public static void main( final String... args ) throws IOException
@@ -454,7 +410,7 @@ public class N5ConvertSpark
 
 		@Option(name = "-c", aliases = { "--compression" }, required = false,
 				usage = "Compression to be used for the converted dataset (by default the same compression is used as for the input dataset).")
-		private String compressionStr;
+		private N5Compression n5Compression;
 
 		@Option(name = "-t", aliases = { "--type" }, required = false,
 				usage = "Type to be used for the converted dataset (by default the same type is used as for the input dataset)."
@@ -473,20 +429,7 @@ public class N5ConvertSpark
 		private Boolean force;
 
 		private int[] blockSize;
-		private Compression compression;
-
 		private boolean parsedSuccessfully = false;
-
-		private final static Map< String, Compression > defaultCompressions;
-		static
-		{
-			defaultCompressions = new HashMap<>();
-			defaultCompressions.put( "raw", new RawCompression() );
-			defaultCompressions.put( "gzip", new GzipCompression() );
-			defaultCompressions.put( "bzip2", new Bzip2Compression() );
-			defaultCompressions.put( "lz4", new Lz4Compression() );
-			defaultCompressions.put( "xz", new XzCompression() );
-		}
 
 		public Arguments( final String... args )
 		{
@@ -496,17 +439,6 @@ public class N5ConvertSpark
 				parser.parseArgument( args );
 
 				blockSize = blockSizeStr != null ? CmdUtils.parseIntArray( blockSizeStr ) : null;
-
-				if ( compressionStr == null )
-				{
-					compression = null;
-				}
-				else
-				{
-					compression = defaultCompressions.get( compressionStr.toLowerCase() );
-					if ( compression == null )
-						throw new IllegalArgumentException( "Incorrect compression argument specified. Supported compression schemes are: " + Arrays.toString( defaultCompressions.keySet().toArray( new String[ 0 ] ) ) );
-				}
 
 				if ( Objects.isNull( minValue ) != Objects.isNull( maxValue ) )
 					throw new IllegalArgumentException( "minValue and maxValue should be either both specified or omitted." );
@@ -528,7 +460,7 @@ public class N5ConvertSpark
 		public String getInputDatasetPath() { return inputDatasetPath; }
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getBlockSize() { return blockSize; }
-		public Compression getCompression() { return compression; }
+		public Compression getCompression() { return n5Compression != null ? n5Compression.get() : null; }
 		public DataType getDataType() { return dataType; }
 		public Pair< Double, Double > getValueRange() { return Objects.nonNull( minValue ) && Objects.nonNull( maxValue ) ? new ValuePair<>( minValue, maxValue ) : null; }
 	}
