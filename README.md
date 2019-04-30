@@ -298,7 +298,6 @@ spark-janelia/slice-tiff-to-n5.py
 -n <output n5 root>
 -o <output dataset>
 -b <output block size>
-[-d <slice dimension>]
 [-c <n5 compression>]
 ```
 </details>
@@ -312,7 +311,6 @@ spark-local/slice-tiff-to-n5.py
 -n <output n5 root>
 -o <output dataset>
 -b <output block size>
-[-d <slice dimension>]
 [-c <n5 compression>]
 ```
 </details>
@@ -320,7 +318,7 @@ spark-local/slice-tiff-to-n5.py
 The tool lists all slice TIFF images contained in the input directory and converts them into a 3D N5 dataset.<br/>
 The slice images are automatically sorted by their filenames in natural order, such that `1.tif` and `2.tif` are placed before `10.tif`.<br/>
 The block size can be specified as three comma-separated values, or as a single value as a shortcut for cube-shaped blocks.<br/>
-The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to treat input images as YZ, XZ, or XY slices respectively.
+The input images are assumed to be XY slices.
 
 
 ### N5 to slice TIFF series converter

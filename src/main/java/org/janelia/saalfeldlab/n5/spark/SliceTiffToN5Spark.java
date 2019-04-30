@@ -8,6 +8,7 @@ import java.text.Collator;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -20,7 +21,6 @@ import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
 import org.janelia.saalfeldlab.n5.spark.util.N5Compression;
 import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
-import org.janelia.saalfeldlab.n5.spark.util.SliceDimension;
 import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -29,14 +29,9 @@ import org.kohsuke.args4j.Option;
 import com.esotericsoftware.kryo.Kryo;
 
 import ij.ImagePlus;
-import net.imglib2.Cursor;
-import net.imglib2.Dimensions;
-import net.imglib2.FinalDimensions;
-import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.util.Grids;
-import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.img.imageplus.ImagePlusImgs;
 import net.imglib2.type.NativeType;
@@ -65,8 +60,6 @@ public class SliceTiffToN5Spark
 	 * 			Output N5 block size
 	 * @param compression
 	 * 			Output N5 compression
-	 * @param sliceDimension
-	 * 			Slice dimension of the input images
 	 * @throws IOException
 	 */
 	@SuppressWarnings( "unchecked" )
@@ -76,8 +69,7 @@ public class SliceTiffToN5Spark
 			final N5WriterSupplier outputN5Supplier,
 			final String outputDataset,
 			final int[] blockSize,
-			final Compression compression,
-			final SliceDimension sliceDimension ) throws IOException
+			final Compression compression ) throws IOException
 	{
 		if ( blockSize.length != 3 )
 			throw new IllegalArgumentException( "Expected 3D block size." );
@@ -92,11 +84,6 @@ public class SliceTiffToN5Spark
 		if ( tiffSliceFilepaths.isEmpty() )
 			throw new RuntimeException( "Specified input directory does not contain any TIFF slices" );
 
-		final int[] sliceDimensionMap = new int[ 2 ];
-		for ( int i = 0, d = 0; d < 3; ++d )
-			if ( d != sliceDimension.asInteger() )
-				sliceDimensionMap[ i++ ] = d;
-
 		// open the first image in the series to find out the size of the dataset and its data type
 		final long[] dimensions;
 		final DataType dataType;
@@ -106,78 +93,59 @@ public class SliceTiffToN5Spark
 			if ( img.numDimensions() != 2 )
 				throw new RuntimeException( "TIFF images in the specified directory are not 2D" );
 
-			dimensions = new long[ 3 ];
-			dimensions[ sliceDimensionMap[ 0 ] ] = img.dimension( 0 );
-			dimensions[ sliceDimensionMap[ 1 ] ] = img.dimension( 1 );
-			dimensions[ sliceDimension.asInteger() ] = tiffSliceFilepaths.size();
-
+			dimensions = new long[] { img.dimension( 0 ), img.dimension( 1 ), tiffSliceFilepaths.size() };
 			dataType = N5Utils.dataType( Util.getTypeFromInterval( img ) );
 		}
 
 		final N5Writer n5 = outputN5Supplier.get();
 		if ( n5.datasetExists( outputDataset ) )
 			throw new RuntimeException( "Output N5 dataset already exists." );
-		n5.createDataset( outputDataset, dimensions, blockSize, dataType, compression );
 
-		final List< Tuple2< long[], long[] > > parallelizeBlocks = N5SparkUtils.toMinMaxTuples( Grids.collectAllContainedIntervals( dimensions, blockSize ) );
+		final String tmpDataset = outputDataset + "-tmp";
+		if ( n5.datasetExists( tmpDataset ) )
+			throw new RuntimeException( "Temporary N5 dataset (" + tmpDataset + ") already exists, please delete it and run again." );
 
-		sparkContext.parallelize( parallelizeBlocks, Math.min( parallelizeBlocks.size(), MAX_PARTITIONS ) ).foreach( minMaxTuple ->
+		final int[] tmpBlockSize = new int[ 3 ];
+		tmpBlockSize[ 2 ] = 1;
+		for ( int d = 0; d < 2; ++d )
+			tmpBlockSize[ d ] = blockSize[ d ] * Math.max( ( int ) Math.round( Math.sqrt( blockSize[ 2 ] ) ), 1 );
+
+		// convert to temporary N5 dataset with block size = 1 in the slice dimension and increased block size in other dimensions
+		n5.createDataset( tmpDataset, dimensions, tmpBlockSize, dataType, compression );
+		final List< Integer > sliceIndices = IntStream.range( 0, tiffSliceFilepaths.size() ).boxed().collect( Collectors.toList() );
+		sparkContext.parallelize( sliceIndices, Math.min( sliceIndices.size(), MAX_PARTITIONS ) ).foreach( sliceIndex ->
 			{
-				final Interval interval = N5SparkUtils.toInterval( minMaxTuple );
-
-				final T type = N5Utils.forDataType( dataType );
-				final RandomAccessibleInterval< T > dstImg = Views.translate(
-						new ArrayImgFactory<>( type ).create( interval ),
-						Intervals.minAsLongArray( interval )
-					);
-
-				final long[] sliceMinMax = {
-						interval.min( sliceDimension.asInteger() ),
-						interval.max( sliceDimension.asInteger() )
-					};
-
-				final Dimensions sliceDimensions = new FinalDimensions(
-						dimensions[ sliceDimensionMap[ 0 ] ],
-						dimensions[ sliceDimensionMap[ 1 ] ]
-					);
-
-				for ( long slice = sliceMinMax[ 0 ]; slice <= sliceMinMax[ 1 ]; ++slice )
-				{
-					final ImagePlus imp = TiffUtils.openTiff( tiffSliceFilepaths.get( ( int ) slice ) );
-					final RandomAccessibleInterval< T > img = ( RandomAccessibleInterval< T > ) ImagePlusImgs.from( imp );
-					if ( !Intervals.equalDimensions( img, new FinalInterval( sliceDimensions ) ) )
-						throw new RuntimeException( "TIFF images in the specified directory differ in size" );
-
-					final long[] sliceIntervalMin = new long[ 2 ], sliceIntervalMax = new long[ 2 ];
-					for ( int d = 0; d < 2; ++d )
-					{
-						sliceIntervalMin[ d ] = interval.min( sliceDimensionMap[ d ] );
-						sliceIntervalMax[ d ] = interval.max( sliceDimensionMap[ d ] );
-					}
-					final FinalInterval sliceInterval = new FinalInterval( sliceIntervalMin, sliceIntervalMax );
-
-					final RandomAccessibleInterval< T > imgCrop = Views.interval( img, sliceInterval );
-					final RandomAccessibleInterval< T > dstImgSlice = Views.hyperSlice( dstImg, sliceDimension.asInteger(), slice );
-
-					final Cursor< T > srcCursor = Views.flatIterable( imgCrop ).cursor();
-					final Cursor< T > dstCursor = Views.flatIterable( dstImgSlice ).cursor();
-					while ( srcCursor.hasNext() || dstCursor.hasNext() )
-						dstCursor.next().set( srcCursor.next() );
-				}
-
-				final CellGrid blockGrid = new CellGrid( dimensions, blockSize );
-				final long[] gridOffset = new long[ 3 ];
-				blockGrid.getCellPosition( Intervals.minAsLongArray( interval ), gridOffset );
-
+				final ImagePlus imp = TiffUtils.openTiff( tiffSliceFilepaths.get( sliceIndex ) );
+				final RandomAccessibleInterval< T > img = ( RandomAccessibleInterval< T > ) ImagePlusImgs.from( imp );
 				N5Utils.saveNonEmptyBlock(
-						dstImg,
+						Views.addDimension( img, 0, 0 ),
 						outputN5Supplier.get(),
-						outputDataset,
-						gridOffset,
-						type.createVariable()
+						tmpDataset,
+						new long[] { 0, 0, sliceIndex },
+						Util.getTypeFromInterval( img ).createVariable()
 					);
 			}
 		);
+
+		// resave the temporary dataset using the requested block size
+		final int[] processingBlockSize = { tmpBlockSize[ 0 ], tmpBlockSize[ 1 ], blockSize[ 2 ] }; // minimize number of reads of each temporary block
+		n5.createDataset( outputDataset, dimensions, blockSize, dataType, compression );
+		final List< Tuple2< long[], long[] > > minMaxTuples = N5SparkUtils.toMinMaxTuples( Grids.collectAllContainedIntervals( dimensions, processingBlockSize ) );
+		sparkContext.parallelize( minMaxTuples, Math.min( minMaxTuples.size(), MAX_PARTITIONS ) ).foreach( minMaxTuple ->
+			{
+				final Interval interval = N5SparkUtils.toInterval( minMaxTuple );
+				final N5Writer n5Local = outputN5Supplier.get();
+				final RandomAccessibleInterval< T > tmpImg = N5Utils.open( n5Local, tmpDataset );
+				final RandomAccessibleInterval< T > tmpImgCrop = Views.offsetInterval( tmpImg, interval );
+				final CellGrid cellGrid = new CellGrid( dimensions, blockSize );
+				final long[] gridOffset = new long[ 3 ];
+				cellGrid.getCellPosition( Intervals.minAsLongArray( interval ), gridOffset );
+				N5Utils.saveNonEmptyBlock( tmpImgCrop, n5Local, outputDataset, gridOffset, Util.getTypeFromInterval( tmpImgCrop ) );
+			}
+		);
+
+		// cleanup the temporary dataset
+		N5RemoveSpark.remove( sparkContext, outputN5Supplier, tmpDataset );
 	}
 
 
@@ -199,8 +167,7 @@ public class SliceTiffToN5Spark
 					n5Supplier,
 					parsedArgs.getOutputDatasetPath(),
 					parsedArgs.getBlockSize(),
-					parsedArgs.getCompression(),
-					parsedArgs.getSliceDimension()
+					parsedArgs.getCompression()
 				);
 		}
 
@@ -230,10 +197,6 @@ public class SliceTiffToN5Spark
 		@Option(name = "-c", aliases = { "--compression" }, required = false,
 				usage = "Compression for the output N5 dataset")
 		private N5Compression n5Compression = N5Compression.GZIP;
-
-		@Option(name = "-d", aliases = { "--sliceDimension" }, required = false,
-				usage = "Slice dimension as a string")
-		private SliceDimension sliceDimension = SliceDimension.Z;
 
 		private int[] blockSize;
 		private boolean parsedSuccessfully = false;
@@ -273,6 +236,5 @@ public class SliceTiffToN5Spark
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getBlockSize() { return blockSize; }
 		public Compression getCompression() { return n5Compression.get(); }
-		public SliceDimension getSliceDimension() { return sliceDimension; }
 	}
 }
