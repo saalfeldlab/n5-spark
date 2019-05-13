@@ -67,6 +67,45 @@ public class N5ToSliceTiffSpark
 			final TiffCompression compression,
 			final SliceDimension sliceDimension ) throws IOException
 	{
+		convert(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				outputPath,
+				compression,
+				sliceDimension,
+				""
+			);
+	}
+
+	/**
+	 * Converts a given dataset into slice TIFF series.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting TIFF series
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting TIFF series
+	 * @param sliceDimension
+	 * 			Dimension to slice over
+	 * @param filenamePrefix
+	 * 			Filename prefix (by default output files are named 1.tif, 2.tif, and so on)
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > > void convert(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5Supplier,
+			final String datasetPath,
+			final String outputPath,
+			final TiffCompression compression,
+			final SliceDimension sliceDimension,
+			final String filenamePrefix ) throws IOException
+	{
 		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
 		final long[] dimensions = attributes.getDimensions();
@@ -130,7 +169,7 @@ public class N5ToSliceTiffSpark
 				}
 
 				final ImagePlus sliceImp = target.getImagePlus();
-				final String outputImgPath = Paths.get( outputPath, slice + ".tif" ).toString();
+				final String outputImgPath = Paths.get( outputPath, filenamePrefix + slice + ".tif" ).toString();
 				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
@@ -140,7 +179,7 @@ public class N5ToSliceTiffSpark
 	public static void main( final String... args ) throws IOException
 	{
 		final Arguments parsedArgs = new Arguments( args );
-		if ( !parsedArgs.parsedSuccessfully() )
+		if ( !parsedArgs.parsedSuccessfully )
 			System.exit( 1 );
 
 		try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
@@ -148,14 +187,15 @@ public class N5ToSliceTiffSpark
 				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
 			) )
 		{
-			final N5ReaderSupplier n5Supplier = () -> new N5FSReader( parsedArgs.getN5Path() );
+			final N5ReaderSupplier n5Supplier = () -> new N5FSReader( parsedArgs.n5Path );
 			convert(
 					sparkContext,
 					n5Supplier,
-					parsedArgs.getInputDatasetPath(),
-					parsedArgs.getOutputPath(),
-					parsedArgs.getTiffCompression(),
-					parsedArgs.getSliceDimension()
+					parsedArgs.inputDatasetPath,
+					parsedArgs.outputPath,
+					parsedArgs.tiffCompression,
+					parsedArgs.sliceDimension,
+					parsedArgs.filenamePrefix
 				);
 		}
 
@@ -187,6 +227,10 @@ public class N5ToSliceTiffSpark
 				usage = "Dimension to slice over as a string")
 		private SliceDimension sliceDimension = SliceDimension.Z;
 
+		@Option(name = "-f", aliases = { "--filenamePrefix" }, required = false,
+				usage = "Optional filename prefix (by default output files are named 1.tif, 2.tif, and so on)")
+		private String filenamePrefix;
+
 		private boolean parsedSuccessfully = false;
 
 		public Arguments( final String... args ) throws IllegalArgumentException
@@ -203,13 +247,5 @@ public class N5ToSliceTiffSpark
 				parser.printUsage( System.err );
 			}
 		}
-
-		public boolean parsedSuccessfully() { return parsedSuccessfully; }
-
-		public String getN5Path() { return n5Path; }
-		public String getInputDatasetPath() { return inputDatasetPath; }
-		public String getOutputPath() { return outputPath; }
-		public TiffCompression getTiffCompression() { return tiffCompression; }
-		public SliceDimension getSliceDimension() { return sliceDimension; }
 	}
 }
