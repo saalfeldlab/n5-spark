@@ -21,7 +21,7 @@ import org.junit.Test;
 
 public class N5RemoveSparkTest
 {
-	static private String basePath = System.getProperty("user.home") + "/tmp/n5-test";
+	static private String basePath = System.getProperty("user.home") + "/tmp/n5-remove-test";
 	static private String groupName = "/test/group";
 	static private String datasetName = "/test/group/dataset";
 

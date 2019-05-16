@@ -27,7 +27,7 @@ import net.imglib2.view.Views;
 
 public class N5OffsetDownsamplerSparkTest
 {
-	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
+	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-offset-downsampler-test";
 	static private final String datasetPath = "data";
 	static private final String downsampledDatasetPath = "downsampled-data";
 

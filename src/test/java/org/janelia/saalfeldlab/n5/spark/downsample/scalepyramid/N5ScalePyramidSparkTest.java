@@ -29,7 +29,7 @@ import net.imglib2.view.Views;
 
 public class N5ScalePyramidSparkTest
 {
-	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-downsampler-test";
+	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-scale-pyramid-test";
 	static private final String datasetPath = "data";
 
 	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
