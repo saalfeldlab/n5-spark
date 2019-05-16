@@ -153,7 +153,7 @@ public class N5ConvertSpark
 			}
 			else
 			{
-				final I inputType = N5Utils.forDataType( inputDataType );
+				final I inputType = N5Utils.type( inputDataType );
 				minInputValue = inputType.getMinValue();
 				maxInputValue = inputType.getMaxValue();
 			}
@@ -167,7 +167,7 @@ public class N5ConvertSpark
 		}
 		else
 		{
-			final O outputType = N5Utils.forDataType( outputDataType );
+			final O outputType = N5Utils.type( outputDataType );
 			minOutputValue = outputType.getMinValue();
 			maxOutputValue = outputType.getMaxValue();
 		}
@@ -240,7 +240,7 @@ public class N5ConvertSpark
 				outputBlockMax[ d ] = outputBlockMin[ d ] + outputBlockDimensions[ d ] - 1;
 			final Interval outputBlockInterval = new FinalInterval( outputBlockMin, outputBlockMax );
 
-			final O outputType = N5Utils.forDataType( outputDataType );
+			final O outputType = N5Utils.type( outputDataType );
 
 			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
 			final RandomAccessible< O > convertedSource;
@@ -316,7 +316,7 @@ public class N5ConvertSpark
 				adjustedBlockMax[ d ] = adjustedBlockMin[ d ] + adjustedBlockDimensions[ d ] - 1;
 			final Interval adjustedBlockInterval = new FinalInterval( adjustedBlockMin, adjustedBlockMax );
 
-			final O outputType = N5Utils.forDataType( outputDataType );
+			final O outputType = N5Utils.type( outputDataType );
 
 			final RandomAccessibleInterval< I > source = N5Utils.open( n5InputSupplier.get(), inputDatasetPath );
 			final RandomAccessible< O > convertedSource;

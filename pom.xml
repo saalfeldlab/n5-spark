@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>22.3.0</version>
+		<version>26.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -121,7 +121,6 @@
 				<dependency>
 					<groupId>org.apache.spark</groupId>
 					<artifactId>spark-core_2.11</artifactId>
-					<version>2.2.0</version>
 					<scope>provided</scope>
 				</dependency>
 			</dependencies>
@@ -132,7 +131,6 @@
 				<dependency>
 					<groupId>org.apache.spark</groupId>
 					<artifactId>spark-core_2.11</artifactId>
-					<version>2.2.0</version>
 				</dependency>
 			</dependencies>
 		</profile>
@@ -219,7 +217,7 @@
 		<dependency>
 			<groupId>org.janelia.saalfeldlab</groupId>
 			<artifactId>n5-imglib2</artifactId>
-			<version>3.0.0</version>
+			<version>3.3.0</version>
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>
@@ -250,13 +248,11 @@
 					</configuration>
 				</plugin>
 				<plugin>
-					<artifactId>maven-compiler-plugin</artifactId>
-					<configuration>
-						<source>1.8</source>
-						<target>1.8</target>
-					</configuration>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
 				</plugin>
 				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-deploy-plugin</artifactId>
 					<configuration>
 						<altDeploymentRepository>internal.repo::default::file://${deploy.path}</altDeploymentRepository>
