@@ -44,6 +44,7 @@ public class N5ToSliceTiffSpark
 
 	/**
 	 * Converts a given dataset into slice TIFF series.
+	 * The output images will be named as 0.tif, 1.tif, and so on.
 	 *
 	 * @param sparkContext
 	 * 			Spark context instantiated with {@link Kryo} serializer
@@ -74,7 +75,7 @@ public class N5ToSliceTiffSpark
 				outputPath,
 				compression,
 				sliceDimension,
-				""
+				"%d.tif"
 			);
 	}
 
@@ -93,8 +94,8 @@ public class N5ToSliceTiffSpark
 	 * 			TIFF compression to be used for the resulting TIFF series
 	 * @param sliceDimension
 	 * 			Dimension to slice over
-	 * @param filenamePrefix
-	 * 			Filename prefix (by default output files are named 1.tif, 2.tif, and so on)
+	 * @param filenameFormat
+	 * 			Filename format specified using Java string formatter syntax
 	 * @throws IOException
 	 */
 	public static < T extends NativeType< T > > void convert(
@@ -104,7 +105,7 @@ public class N5ToSliceTiffSpark
 			final String outputPath,
 			final TiffCompression compression,
 			final SliceDimension sliceDimension,
-			final String filenamePrefix ) throws IOException
+			final String filenameFormat ) throws IOException
 	{
 		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
@@ -169,7 +170,7 @@ public class N5ToSliceTiffSpark
 				}
 
 				final ImagePlus sliceImp = target.getImagePlus();
-				final String outputImgPath = Paths.get( outputPath, filenamePrefix + slice + ".tif" ).toString();
+				final String outputImgPath = Paths.get( outputPath, String.format( filenameFormat, slice ) ).toString();
 				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
 			}
 		);
@@ -195,7 +196,7 @@ public class N5ToSliceTiffSpark
 					parsedArgs.outputPath,
 					parsedArgs.tiffCompression,
 					parsedArgs.sliceDimension,
-					parsedArgs.filenamePrefix
+					parsedArgs.filenameFormat
 				);
 		}
 
@@ -227,9 +228,9 @@ public class N5ToSliceTiffSpark
 				usage = "Dimension to slice over as a string")
 		private SliceDimension sliceDimension = SliceDimension.Z;
 
-		@Option(name = "-f", aliases = { "--filenamePrefix" }, required = false,
-				usage = "Optional filename prefix (by default output files are named 1.tif, 2.tif, and so on)")
-		private String filenamePrefix;
+		@Option(name = "-f", aliases = { "--filenameFormat" }, required = false,
+				usage = "Filename format (by default output files are named 1.tif, 2.tif, and so on)")
+		private String filenameFormat = "%d.tif";
 
 		private boolean parsedSuccessfully = false;
 
