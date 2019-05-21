@@ -164,7 +164,13 @@ public class N5DownsamplerSparkTest
 		Assert.assertArrayEquals( downsamplingFactors, n5.getAttribute( downsampledDatasetPath, N5DownsamplerSpark.DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class ) );
 
 		final long numElements = Intervals.numElements( dimensions );
-		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
+
+		double sum = 0.0;
+		for ( int i = 1; i <= numElements; ++i )
+			sum += i;
+		final double scale = 1.0 / numElements;
+
+		Assert.assertArrayEquals( new int[] { ( int ) Util.round( sum * scale ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
 	}
 
 
