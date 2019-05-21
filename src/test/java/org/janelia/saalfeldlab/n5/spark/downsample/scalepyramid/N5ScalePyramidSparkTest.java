@@ -56,12 +56,7 @@ public class N5ScalePyramidSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	@Test
@@ -93,8 +88,6 @@ public class N5ScalePyramidSparkTest
 
 		final long numElements = Intervals.numElements( new long[] { 4, 4, 4 } );
 		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) ) );
-
-		cleanup( n5 );
 	}
 
 	private void createDataset( final N5Writer n5, final long[] dimensions, final int[] blockSize ) throws IOException

@@ -59,12 +59,7 @@ public class N5NonIsotropicScalePyramidSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	private void createDataset( final N5Writer n5, final long[] dimensions, final int[] blockSize ) throws IOException
@@ -124,8 +119,6 @@ public class N5NonIsotropicScalePyramidSparkTest
 				},
 				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) )
 			);
-
-		cleanup( n5 );
 	}
 
 	@Test
@@ -168,8 +161,6 @@ public class N5NonIsotropicScalePyramidSparkTest
 				},
 				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) )
 			);
-
-		cleanup( n5 );
 	}
 
 	@Test
@@ -214,8 +205,6 @@ public class N5NonIsotropicScalePyramidSparkTest
 				},
 				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledLastDatasetPath ) )
 			);
-
-		cleanup( n5 );
 	}
 
 	@Test

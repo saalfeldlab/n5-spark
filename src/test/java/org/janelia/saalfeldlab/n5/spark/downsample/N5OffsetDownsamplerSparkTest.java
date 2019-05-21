@@ -55,12 +55,7 @@ public class N5OffsetDownsamplerSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	@Test
@@ -93,7 +88,7 @@ public class N5OffsetDownsamplerSparkTest
 					getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 				);
 
-			cleanup( n5 );
+			Assert.assertTrue( n5Supplier.get().remove( downsampledDatasetPath ) );
 		}
 	}
 
@@ -127,7 +122,7 @@ public class N5OffsetDownsamplerSparkTest
 					getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 				);
 
-			cleanup( n5 );
+			Assert.assertTrue( n5Supplier.get().remove( downsampledDatasetPath ) );
 		}
 	}
 
@@ -162,7 +157,7 @@ public class N5OffsetDownsamplerSparkTest
 						getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 					);
 
-				cleanup( n5 );
+				Assert.assertTrue( n5Supplier.get().remove( downsampledDatasetPath ) );
 			}
 		}
 	}

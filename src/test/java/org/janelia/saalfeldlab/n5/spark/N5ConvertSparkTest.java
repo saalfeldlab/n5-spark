@@ -72,12 +72,7 @@ public class N5ConvertSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	@Test

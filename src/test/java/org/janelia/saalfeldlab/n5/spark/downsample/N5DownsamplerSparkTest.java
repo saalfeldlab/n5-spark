@@ -57,12 +57,7 @@ public class N5DownsamplerSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	@Test
@@ -92,8 +87,6 @@ public class N5DownsamplerSparkTest
 			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 9  + 10 + 13 + 14 + 25 + 26 + 29 + 30 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 0, 1, zCoord } ).getData() );
 			Assert.assertArrayEquals( new int[] { ( int ) Util.round( zOffset + ( 11 + 12 + 15 + 16 + 27 + 28 + 31 + 32 ) / 8. ) }, ( int[] ) n5.readBlock( downsampledDatasetPath, downsampledAttributes, new long[] { 1, 1, zCoord } ).getData() );
 		}
-
-		cleanup( n5 );
 	}
 
 	@Test
@@ -130,9 +123,6 @@ public class N5DownsamplerSparkTest
 					},
 				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) )
 			);
-
-
-		cleanup( n5 );
 	}
 
 	@Test
@@ -175,8 +165,6 @@ public class N5DownsamplerSparkTest
 
 		final long numElements = Intervals.numElements( dimensions );
 		Assert.assertArrayEquals( new int[] { ( int ) Util.round( ( numElements * ( numElements + 1 ) / 2 ) / ( double ) numElements ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
-
-		cleanup( n5 );
 	}
 
 

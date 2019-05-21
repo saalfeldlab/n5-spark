@@ -49,12 +49,7 @@ public class N5RemoveSparkTest
 			sparkContext.close();
 
 		if ( Files.exists( Paths.get( basePath ) ) )
-			cleanup( n5Supplier.get() );
-	}
-
-	private void cleanup( final N5Writer n5 ) throws IOException
-	{
-		Assert.assertTrue( n5.remove() );
+			n5Supplier.get().remove();
 	}
 
 	@Test
@@ -81,7 +76,7 @@ public class N5RemoveSparkTest
 		Assert.assertFalse( Files.exists( Paths.get( basePath, datasetName ) ) );
 		Assert.assertTrue( Files.exists( Paths.get( basePath, groupName ) ) );
 
-		N5RemoveSpark.remove( sparkContext, n5Supplier, "" );
+		N5RemoveSpark.remove( sparkContext, n5Supplier );
 		Assert.assertFalse( Files.exists( Paths.get( basePath ) ) );
 	}
 }
