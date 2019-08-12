@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
@@ -26,7 +27,7 @@ import net.imglib2.view.Views;
 
 public class N5LabelDownsamplerSparkTest
 {
-	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-label-downsampler-test";
+	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
 	static private final String datasetPath = "data";
 	static private final String downsampledDatasetPath = "downsampled-data";
 

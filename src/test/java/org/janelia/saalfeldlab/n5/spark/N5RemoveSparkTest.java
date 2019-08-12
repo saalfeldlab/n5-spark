@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Random;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DataType;
@@ -21,9 +22,9 @@ import org.junit.Test;
 
 public class N5RemoveSparkTest
 {
-	static private String basePath = System.getProperty("user.home") + "/tmp/n5-remove-test";
-	static private String groupName = "/test/group";
-	static private String datasetName = "/test/group/dataset";
+	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
+	static private final String groupName = "/test/group";
+	static private final String datasetName = "/test/group/dataset";
 
 	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
 

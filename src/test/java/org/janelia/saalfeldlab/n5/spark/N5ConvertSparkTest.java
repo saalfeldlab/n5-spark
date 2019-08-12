@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Optional;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.Bzip2Compression;
@@ -44,7 +45,7 @@ import net.imglib2.view.Views;
 
 public class N5ConvertSparkTest
 {
-	static private final String basePath = System.getProperty( "user.home" ) + "/tmp/n5-converter-test";
+	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
 	static private final String datasetPath = "data";
 	static private final String convertedDatasetPath = "converted-data";
 
