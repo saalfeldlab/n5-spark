@@ -62,8 +62,37 @@ public class N5DownsamplerSpark
 				inputDatasetPath,
 				outputDatasetPath,
 				downsamplingFactors,
-				null
-			);
+				false );
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final boolean overwriteExisting ) throws IOException
+	{
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				null,
+				overwriteExisting );
 	}
 
 	/**
@@ -86,10 +115,42 @@ public class N5DownsamplerSpark
 			final int[] downsamplingFactors,
 			final int[] blockSize ) throws IOException
 	{
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				false );
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final boolean overwriteExisting ) throws IOException
+	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
-		if ( n5.datasetExists( outputDatasetPath ) )
+		if ( !overwriteExisting && n5.datasetExists( outputDatasetPath ) )
 			throw new IllegalArgumentException( "Output N5 dataset " + outputDatasetPath + " already exists" );
 
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
