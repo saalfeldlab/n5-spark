@@ -21,6 +21,8 @@ If you have already cloned the repository, run this after cloning to fetch the s
 git submodule update --init --recursive
 ```
 
+You can use the library in your Spark-based project or as a standalone tool. To use in your project, add a maven dependency and make sure that your application is set to be compiled as a shaded jar that contains all dependencies.
+
 Alternatively, to use as a standalone tool, compile the package for the desired execution environment:
 
 <details>
@@ -412,8 +414,3 @@ spark-local/n5-remove.py
 </details>
 
 The tool removes a group or dataset parallelizing over inner groups. This is typically much faster than deleting the group on a single machine, in particular when removing groups with many nested groups and/or n5 blocks.
-
-
--------------------------------------------------------------
-
-You can alternatively use the library in your Spark-based project. Add a maven dependency and make sure that your application is set to be compiled as a fat jar.
