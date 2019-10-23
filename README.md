@@ -8,6 +8,8 @@ Supported operations:
 * conversion between N5 and slice TIFF series
 * parallel remove
 
+N5 Spark can run on **Amazon Web Services** and **Google Cloud**, more information is available in the [wiki](https://github.com/saalfeldlab/n5-spark/wiki).
+
 ## Usage
 
 Clone the repository with submodules:
