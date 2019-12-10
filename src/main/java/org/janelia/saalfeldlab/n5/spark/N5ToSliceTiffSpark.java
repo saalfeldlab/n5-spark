@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import net.imglib2.type.numeric.RealType;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
@@ -60,7 +62,7 @@ public class N5ToSliceTiffSpark
 	 * 			Dimension to slice over
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > > void convert(
+	public static < T extends NativeType< T > & RealType< T > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -98,7 +100,7 @@ public class N5ToSliceTiffSpark
 	 * 			Filename format specified using Java string formatter syntax
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > > void convert(
+	public static < T extends NativeType< T > & RealType< T > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -106,6 +108,49 @@ public class N5ToSliceTiffSpark
 			final TiffCompression compression,
 			final SliceDimension sliceDimension,
 			final String filenameFormat ) throws IOException
+	{
+		convert(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				outputPath,
+				compression,
+				sliceDimension,
+				filenameFormat,
+				Optional.empty()
+		);
+	}
+
+	/**
+	 * Converts a given dataset into slice TIFF series.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting TIFF series
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting TIFF series
+	 * @param sliceDimension
+	 * 			Dimension to slice over
+	 * @param filenameFormat
+	 * 			Filename format specified using Java string formatter syntax
+	 * @param fillValueOptional
+	 * 			Intensity value for filling extra space
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void convert(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5Supplier,
+			final String datasetPath,
+			final String outputPath,
+			final TiffCompression compression,
+			final SliceDimension sliceDimension,
+			final String filenameFormat,
+			final Optional< Number > fillValueOptional ) throws IOException
 	{
 		final N5Reader n5 = n5Supplier.get();
 		final DatasetAttributes attributes = n5.getDatasetAttributes( datasetPath );
@@ -134,6 +179,13 @@ public class N5ToSliceTiffSpark
 				cellGrid.getCellPosition( slicePos, cellPos );
 
 				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory<>( Util.getTypeFromInterval( cellImg ) ).create( sliceDimensions );
+
+				if ( fillValueOptional.isPresent() )
+				{
+					final double fillValueDouble = fillValueOptional.get().doubleValue();
+					for ( final T val : target )
+						val.setReal( fillValueDouble );
+				}
 
 				final LazyCells< ? extends Cell< ? > > cells = cellImg.getCells();
 				final long[] cellGridMin = new long[ cellImg.numDimensions() ], cellGridMax = new long[ cellImg.numDimensions() ];
@@ -196,7 +248,8 @@ public class N5ToSliceTiffSpark
 					parsedArgs.outputPath,
 					parsedArgs.tiffCompression,
 					parsedArgs.sliceDimension,
-					parsedArgs.filenameFormat
+					parsedArgs.filenameFormat,
+					Optional.ofNullable( parsedArgs.fillValue )
 				);
 		}
 
@@ -231,6 +284,10 @@ public class N5ToSliceTiffSpark
 		@Option(name = "-f", aliases = { "--filenameFormat" }, required = false,
 				usage = "Filename format (by default output files are named 1.tif, 2.tif, and so on)")
 		private String filenameFormat = "%d.tif";
+
+		@Option(name = "--fill", aliases = { "--fillValue" }, required = false,
+				usage = "Intensity value for filling extra space (default is 0)")
+		private Double fillValue = null;
 
 		private boolean parsedSuccessfully = false;
 
