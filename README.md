@@ -333,6 +333,8 @@ spark-janelia/n5-to-slice-tiff.py
 -o <output path> 
 [-d <slice dimension>]
 [-c <tiff compression>]
+[-f <filename format>]
+[--fill <fill value>]
 ```
 </details>
 
@@ -346,11 +348,21 @@ spark-local/n5-to-slice-tiff.py
 -o <output path> 
 [-d <slice dimension>]
 [-c <tiff compression>]
+[-f <filename format>]
+[--fill <fill value>]
 ```
 </details>
 
 The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
 The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to generate YZ, XZ, or XY slices respectively.
+
+The filename format is expected to contain a single placeholder for an integer representing the index of the slice, such as:
+* `-f slice%dz.tif` to produce filenames such as *slice0z.tif*, *slice1z.tif*, *slice2z.tif*, etc.
+* `-f slice%03dz.tif` to produce filenames such as *slice000z.tif*, *slice001z.tif*, *slice002z.tif*, etc.
+
+The default pattern is `%d.tif` so the resulting filenames by default are simply *0.tif*, *1.tif*, *2.tif*, etc.
+
+If the input dataset is sparse and some of the N5 blocks do not exist, this empty space will be filled in the TIFF images with 0 by default. The `--fill` parameter allows to change this fill value.
 
 Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
 **WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
