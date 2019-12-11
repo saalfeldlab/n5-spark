@@ -168,6 +168,7 @@ public class N5ToSliceTiffSpark
 		final List< Long > sliceCoords = LongStream.range( 0, dimensions[ sliceDimension.asInteger() ] ).boxed().collect( Collectors.toList() );
 
 		Paths.get( outputPath ).toFile().mkdirs();
+		final Number fillValue = fillValueOptional != null && fillValueOptional.isPresent() ? fillValueOptional.get() : null;
 
 		sparkContext.parallelize( sliceCoords, Math.min( sliceCoords.size(), MAX_PARTITIONS ) ).foreach( slice ->
 			{
@@ -180,9 +181,9 @@ public class N5ToSliceTiffSpark
 
 				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory<>( Util.getTypeFromInterval( cellImg ) ).create( sliceDimensions );
 
-				if ( fillValueOptional.isPresent() )
+				if ( fillValue != null )
 				{
-					final double fillValueDouble = fillValueOptional.get().doubleValue();
+					final double fillValueDouble = fillValue.doubleValue();
 					for ( final T val : target )
 						val.setReal( fillValueDouble );
 				}
