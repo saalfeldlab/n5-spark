@@ -44,7 +44,7 @@ public class N5ConnectedComponentsSparkTest
         tearDown();
 
         sparkContext = new JavaSparkContext( new SparkConf()
-                .setMaster( "local[1]" )
+                .setMaster( "local[*]" )
                 .setAppName( "N5ConnectedComponentsTest" )
                 .set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
         );
