@@ -101,6 +101,12 @@ public class N5ConnectedComponentsSpark
                     ( in, out ) -> out.set( in.getIntegerLong() != 0 ),
                     new BoolType() );
 
+            boolean isEmpty = true;
+            for ( final Iterator< BoolType > it = Views.iterable( binaryInput ).iterator(); it.hasNext() && isEmpty; )
+                isEmpty &= !it.next().get();
+            if ( isEmpty )
+                return;
+
             final RandomAccessibleInterval< UnsignedLongType > outputBlock = Views.translate(
                     ArrayImgs.unsignedLongs( Intervals.dimensionsAsLongArray( outputBlockInterval ) ),
                     Intervals.minAsLongArray( outputBlockInterval ) );
