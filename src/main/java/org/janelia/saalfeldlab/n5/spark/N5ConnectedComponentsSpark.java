@@ -1,11 +1,11 @@
 package org.janelia.saalfeldlab.n5.spark;
 
+import gnu.trove.map.hash.TLongLongHashMap;
 import net.imglib2.Cursor;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.labeling.ConnectedComponentAnalysis;
 import net.imglib2.algorithm.neighborhood.DiamondShape;
-import net.imglib2.algorithm.util.unionfind.IntArrayRankedUnionFind;
 import net.imglib2.algorithm.util.unionfind.LongHashMapUnionFind;
 import net.imglib2.algorithm.util.unionfind.UnionFind;
 import net.imglib2.converter.Converters;
@@ -67,10 +67,10 @@ public class N5ConnectedComponentsSpark
         n5.createDataset( tempDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
         generateBlockwiseLabeling( sparkContext, n5Supplier, inputDatasetPath, tempDatasetPath );
 
-        final UnionFind unionFind = findTouchingBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath );
+        final TLongLongHashMap parentsMap = findTouchingBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath );
 
         n5.createDataset( outputDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
-        relabelBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath, outputDatasetPath, unionFind );
+        relabelBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath, outputDatasetPath, parentsMap );
 
         N5RemoveSpark.remove( sparkContext, n5Supplier, tempDatasetPath );
     }
@@ -96,21 +96,21 @@ public class N5ConnectedComponentsSpark
             final RandomAccessibleInterval< T > input = N5Utils.open( n5Local, inputDatasetPath );
             final RandomAccessibleInterval< T > inputBlock = Views.interval( input, outputBlockInterval );
 
-            final RandomAccessibleInterval< UnsignedLongType > outputBlock = Views.translate(
-                    ArrayImgs.unsignedLongs( Intervals.dimensionsAsLongArray( outputBlockInterval ) ),
-                    Intervals.minAsLongArray( outputBlockInterval ) );
-
             final RandomAccessibleInterval< BoolType > binaryInput = Converters.convert(
                     inputBlock,
                     ( in, out ) -> out.set( in.getIntegerLong() != 0 ),
                     new BoolType() );
 
+            final RandomAccessibleInterval< UnsignedLongType > outputBlock = Views.translate(
+                    ArrayImgs.unsignedLongs( Intervals.dimensionsAsLongArray( outputBlockInterval ) ),
+                    Intervals.minAsLongArray( outputBlockInterval ) );
+
             ConnectedComponentAnalysis.connectedComponents(
                     binaryInput,
                     outputBlock,
                     new DiamondShape( 1 ),
-                    n -> new IntArrayRankedUnionFind( ( int ) n ),
-                    ConnectedComponentAnalysis.idFromIntervalIndexer( outputBlockInterval ),
+                    n -> new LongHashMapUnionFind(),
+                    ConnectedComponentAnalysis.idFromIntervalIndexer( input ),
                     root -> root + 1 );
 
             N5Utils.saveNonEmptyBlock(
@@ -121,7 +121,7 @@ public class N5ConnectedComponentsSpark
         } );
     }
 
-    private static UnionFind findTouchingBlockwiseComponents(
+    private static TLongLongHashMap findTouchingBlockwiseComponents(
             final JavaSparkContext sparkContext,
             final N5ReaderSupplier n5Supplier,
             final String tempDatasetPath ) throws IOException
@@ -138,22 +138,20 @@ public class N5ConnectedComponentsSpark
                 .map( outputBlockIndex ->
         {
             final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), outputBlockIndex );
-            final N5Reader n5Local = n5Supplier.get();
-            final RandomAccessibleInterval< UnsignedLongType > labeling = N5Utils.open( n5Local, tempDatasetPath );
-            final RandomAccessibleInterval< UnsignedLongType > block = Views.interval( labeling, blockInterval );
+            final RandomAccessibleInterval< UnsignedLongType > labeling = N5Utils.open( n5Supplier.get(), tempDatasetPath );
 
             final Set< List< Long > > blockTouchingPairs = new HashSet<>();
-            for ( int d = 0; d < block.numDimensions(); ++d )
+            for ( int d = 0; d < blockInterval.numDimensions(); ++d )
             {
-                // get the block interval and expand it by 1 px in all dimensions to be able to access the first planes of the next block
-                final long[] expansion = new long[ block.numDimensions() ];
-                expansion[ d ] = 1;
-                final RandomAccessibleInterval< UnsignedLongType > expandedBlock = Views.expandZero( block, expansion );
+                if ( blockInterval.max( d ) >= labeling.max( d ) )
+                    continue;
 
                 final Cursor< UnsignedLongType >[] planeCursors = new Cursor[ 2 ];
                 for ( int i = 0; i < 2; ++i )
                 {
-                    final RandomAccessibleInterval< UnsignedLongType > plane = Views.hyperSlice(expandedBlock, d, blockInterval.max(d) + i);
+                    final long[] sliceMin = Intervals.minAsLongArray( blockInterval ), sliceMax = Intervals.maxAsLongArray( blockInterval );
+                    sliceMin[ d ] = sliceMax[ d ] = blockInterval.max( d ) + i;
+                    final RandomAccessibleInterval< UnsignedLongType > plane = Views.interval( labeling, sliceMin, sliceMax );
                     planeCursors[ i ] = Views.flatIterable( plane ).cursor();
                 }
 
@@ -173,20 +171,18 @@ public class N5ConnectedComponentsSpark
                         Integer.MAX_VALUE // max possible aggregation depth
         );
 
-        // perform union find to merge all touching objects
-        long elapsedMsec = System.currentTimeMillis();
-
-        final UnionFind unionFind = new LongHashMapUnionFind();
+        // perform union find to merge all touching objects across blocks
+        final TLongLongHashMap parentsMap = new TLongLongHashMap();
+        final UnionFind unionFind = new LongHashMapUnionFind( parentsMap, 0, Long::compare );
         for ( final List< Long > touchingPair : touchingPairs )
-            unionFind.join( touchingPair.get( 0 ), touchingPair.get( 1 ) );
+        {
+            unionFind.join(
+                    unionFind.findRoot( touchingPair.get( 0 ) ),
+                    unionFind.findRoot( touchingPair.get( 1 ) ) );
+        }
+        Arrays.stream( parentsMap.keys() ).forEach( unionFind::findRoot );
 
-        elapsedMsec = System.currentTimeMillis() - elapsedMsec;
-        System.out.println( String.format(
-                "Global union-find took %d seconds. Total number of components: %d",
-                elapsedMsec / 1000,
-                unionFind.setCount() ) );
-
-        return unionFind;
+        return parentsMap;
     }
 
     private static void relabelBlockwiseComponents(
@@ -194,7 +190,7 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String tempDatasetPath,
             final String outputDatasetPath,
-            final UnionFind unionFind ) throws IOException
+            final TLongLongHashMap parentsMap ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( outputDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
@@ -203,13 +199,13 @@ public class N5ConnectedComponentsSpark
         final long numBlocks = Intervals.numElements( new CellGrid( dimensions, blockSize ).getGridDimensions() );
         final List< Long > blockIndexes = LongStream.range( 0, numBlocks ).boxed().collect( Collectors.toList() );
 
-        final Broadcast< UnionFind > unionFindBroadcast = sparkContext.broadcast( unionFind );
+        final Broadcast< TLongLongHashMap > parentsMapBroadcast = sparkContext.broadcast( parentsMap );
 
         sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( outputBlockIndex ->
         {
             final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), outputBlockIndex );
             final N5Writer n5Local = n5Supplier.get();
-            final UnionFind unionFindLocal = unionFindBroadcast.getValue();
+            final TLongLongHashMap parentsMapLocal = parentsMapBroadcast.getValue();
             final RandomAccessibleInterval<UnsignedLongType> input = N5Utils.open( n5Local, tempDatasetPath );
             final RandomAccessibleInterval<UnsignedLongType> inputBlock = Views.interval( input, blockInterval );
 
@@ -224,7 +220,7 @@ public class N5ConnectedComponentsSpark
                 final long inputId = inputCursor.next().get();
                 final UnsignedLongType outputVal = outputCursor.next();
                 if ( inputId != 0 )
-                    outputVal.set( unionFindLocal.findRoot( inputId ) );
+                    outputVal.set( parentsMapLocal.containsKey( inputId ) ? parentsMapLocal.get( inputId ) : inputId );
             }
 
             N5Utils.saveNonEmptyBlock(
@@ -234,7 +230,7 @@ public class N5ConnectedComponentsSpark
                     new UnsignedLongType() );
         } );
 
-        unionFindBroadcast.destroy();
+        parentsMapBroadcast.destroy();
     }
 
     public static void main( final String... args ) throws IOException
