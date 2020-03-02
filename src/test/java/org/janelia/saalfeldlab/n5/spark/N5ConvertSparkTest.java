@@ -1,31 +1,5 @@
 package org.janelia.saalfeldlab.n5.spark;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Optional;
-
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.Bzip2Compression;
-import org.janelia.saalfeldlab.n5.DataType;
-import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.GzipCompression;
-import org.janelia.saalfeldlab.n5.Lz4Compression;
-import org.janelia.saalfeldlab.n5.N5FSReader;
-import org.janelia.saalfeldlab.n5.N5FSWriter;
-import org.janelia.saalfeldlab.n5.N5Writer;
-import org.janelia.saalfeldlab.n5.RawCompression;
-import org.janelia.saalfeldlab.n5.XzCompression;
-import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
-import org.janelia.saalfeldlab.n5.spark.N5ConvertSpark.ClampingConverter;
-import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImg;
@@ -42,39 +16,19 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.ValuePair;
 import net.imglib2.view.Views;
+import org.janelia.saalfeldlab.n5.*;
+import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.N5ConvertSpark.ClampingConverter;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class N5ConvertSparkTest
+import java.io.IOException;
+import java.util.Optional;
+
+public class N5ConvertSparkTest extends AbstractN5SparkTest
 {
-	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
 	static private final String datasetPath = "data";
 	static private final String convertedDatasetPath = "converted-data";
-
-	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
-
-	private JavaSparkContext sparkContext;
-
-	@Before
-	public void setUp() throws IOException
-	{
-		// cleanup in case the test has failed
-		tearDown();
-
-		sparkContext = new JavaSparkContext( new SparkConf()
-				.setMaster( "local[*]" )
-				.setAppName( "N5ConverterTest" )
-				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
-			);
-	}
-
-	@After
-	public void tearDown() throws IOException
-	{
-		if ( sparkContext != null )
-			sparkContext.close();
-
-		if ( Files.exists( Paths.get( basePath ) ) )
-			n5Supplier.get().remove();
-	}
 
 	@Test
 	public void testTypeConversion()
@@ -94,7 +48,7 @@ public class N5ConvertSparkTest
 	@Test
 	public void testShortToByte() throws IOException
 	{
-		final N5Writer n5 = n5Supplier.get();
+		final N5Writer n5 = new N5FSWriter( basePath );
 		final long[] dimensions = new long[] { 4, 5, 6 };
 		N5Utils.save( createImage( new ShortType( ( short ) 50 ), dimensions ), n5, datasetPath, new int[] { 2, 3, 1 }, new XzCompression() );
 
@@ -102,7 +56,7 @@ public class N5ConvertSparkTest
 				sparkContext,
 				() -> new N5FSReader( basePath ),
 				datasetPath,
-				n5Supplier,
+				() -> new N5FSWriter( basePath ),
 				convertedDatasetPath,
 				Optional.of( new int[] { 5, 1, 2 } ),
 				Optional.of( new Bzip2Compression() ),
@@ -120,14 +74,14 @@ public class N5ConvertSparkTest
 
 		Assert.assertArrayEquals(
 				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 97 ), dimensions ).update( null ) ).getCurrentStorageArray(),
-				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
+				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5, convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
 			);
 	}
 
 	@Test
 	public void testFloatToUnsignedByte() throws IOException
 	{
-		final N5Writer n5 = n5Supplier.get();
+		final N5Writer n5 = new N5FSWriter( basePath );
 		final long[] dimensions = new long[] { 4, 5, 6 };
 		N5Utils.save( createImage( new FloatType( ( float ) 0.25 ), dimensions ), n5, datasetPath, new int[] { 2, 3, 1 }, new RawCompression() );
 
@@ -135,7 +89,7 @@ public class N5ConvertSparkTest
 				sparkContext,
 				() -> new N5FSReader( basePath ),
 				datasetPath,
-				n5Supplier,
+				() -> new N5FSWriter( basePath ),
 				convertedDatasetPath,
 				Optional.of( new int[] { 5, 1, 2 } ),
 				Optional.of( new GzipCompression() ),
@@ -153,14 +107,14 @@ public class N5ConvertSparkTest
 
 		Assert.assertArrayEquals(
 				( int[] ) ( ( ArrayDataAccess< ? > ) createImage( new IntType( 64 ), dimensions ).update( null ) ).getCurrentStorageArray(),
-				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
+				( int[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5, convertedDatasetPath ), new IntType() ).update( null ) ).getCurrentStorageArray()
 			);
 	}
 
 	@Test
 	public void testAdjustedInputBlocks() throws IOException
 	{
-		final N5Writer n5 = n5Supplier.get();
+		final N5Writer n5 = new N5FSWriter( basePath );
 		final long[] dimensions = new long[] { 30, 30, 30 };
 
 		final short[] inputData = new short[ ( int ) Intervals.numElements( dimensions ) ];
@@ -173,7 +127,7 @@ public class N5ConvertSparkTest
 				sparkContext,
 				() -> new N5FSReader( basePath ),
 				datasetPath,
-				n5Supplier,
+				() -> new N5FSWriter( basePath ),
 				convertedDatasetPath,
 				Optional.of( new int[] { 5, 3, 3 } ),
 				Optional.empty(),
@@ -191,7 +145,7 @@ public class N5ConvertSparkTest
 
 		Assert.assertArrayEquals(
 				inputData,
-				( short[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5Supplier.get(), convertedDatasetPath ), new ShortType() ).update( null ) ).getCurrentStorageArray()
+				( short[] ) ( ( ArrayDataAccess< ? > ) getImgFromRandomAccessibleInterval( N5Utils.open( n5, convertedDatasetPath ), new ShortType() ).update( null ) ).getCurrentStorageArray()
 			);
 	}
 
