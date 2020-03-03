@@ -1,25 +1,5 @@
 package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.List;
-
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.GzipCompression;
-import org.janelia.saalfeldlab.n5.N5FSWriter;
-import org.janelia.saalfeldlab.n5.N5Writer;
-import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
-import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
@@ -27,48 +7,33 @@ import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
+import org.janelia.saalfeldlab.n5.DatasetAttributes;
+import org.janelia.saalfeldlab.n5.GzipCompression;
+import org.janelia.saalfeldlab.n5.N5FSWriter;
+import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
+import org.janelia.saalfeldlab.n5.spark.AbstractN5SparkTest;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class N5OffsetScalePyramidSparkTest
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.List;
+
+public class N5OffsetScalePyramidSparkTest extends AbstractN5SparkTest
 {
-	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
 	static private final String datasetPath = "data";
-
-	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
-
-	private JavaSparkContext sparkContext;
-
-	@Before
-	public void setUp() throws IOException
-	{
-		// cleanup in case the test has failed
-		tearDown();
-
-		sparkContext = new JavaSparkContext( new SparkConf()
-				.setMaster( "local[*]" )
-				.setAppName( "N5OffsetScalePyramidTest" )
-				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
-			);
-	}
-
-	@After
-	public void tearDown() throws IOException
-	{
-		if ( sparkContext != null )
-			sparkContext.close();
-
-		if ( Files.exists( Paths.get( basePath ) ) )
-			n5Supplier.get().remove();
-	}
 
 	@Test
 	public void testDownsampling() throws IOException
 	{
-		final N5Writer n5 = n5Supplier.get();
+		final N5Writer n5 = new N5FSWriter( basePath );
 		createDataset( n5, new long[] { 4, 4, 4 }, new int[] { 1, 1, 1 } );
 
 		final List< String > scalePyramidDatasets = N5OffsetScalePyramidSpark.downsampleOffsetScalePyramid(
 				sparkContext,
-				n5Supplier,
+				() -> new N5FSWriter( basePath ),
 				datasetPath,
 				new int[] { 2, 2, 2 },
 				new boolean[] { true, true, true }
