@@ -1,62 +1,23 @@
 package org.janelia.saalfeldlab.n5.spark;
 
+import org.janelia.saalfeldlab.n5.*;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Random;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.janelia.saalfeldlab.n5.DataType;
-import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5FSWriter;
-import org.janelia.saalfeldlab.n5.N5Writer;
-import org.janelia.saalfeldlab.n5.RawCompression;
-import org.janelia.saalfeldlab.n5.ShortArrayDataBlock;
-import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-public class N5RemoveSparkTest
+public class N5RemoveSparkTest extends AbstractN5SparkTest
 {
-	static private final String basePath = System.getProperty("user.home") + "/.n5-spark-test-" + RandomStringUtils.randomAlphanumeric(5);
 	static private final String groupName = "/test/group";
 	static private final String datasetName = "/test/group/dataset";
-
-	static private final N5WriterSupplier n5Supplier = () -> new N5FSWriter( basePath );
-
-	private JavaSparkContext sparkContext;
-
-	@Before
-	public void setUp() throws IOException
-	{
-		// cleanup in case the test has failed
-		tearDown();
-
-		sparkContext = new JavaSparkContext( new SparkConf()
-				.setMaster( "local[*]" )
-				.setAppName( "N5RemoveTest" )
-				.set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
-			);
-	}
-
-	@After
-	public void tearDown() throws IOException
-	{
-		if ( sparkContext != null )
-			sparkContext.close();
-
-		if ( Files.exists( Paths.get( basePath ) ) )
-			n5Supplier.get().remove();
-	}
 
 	@Test
 	public void test() throws IOException
 	{
-		final N5Writer n5 = n5Supplier.get();
+		final N5Writer n5 = new N5FSWriter( basePath );
 
 		final short[] data = new short[64 * 64 * 64];
 		final Random rnd = new Random();
@@ -73,11 +34,11 @@ public class N5RemoveSparkTest
 					n5.writeBlock(datasetName, attributes, dataBlock);
 				}
 
-		N5RemoveSpark.remove( sparkContext, n5Supplier, datasetName );
+		N5RemoveSpark.remove( sparkContext, () -> new N5FSWriter( basePath ), datasetName );
 		Assert.assertFalse( Files.exists( Paths.get( basePath, datasetName ) ) );
 		Assert.assertTrue( Files.exists( Paths.get( basePath, groupName ) ) );
 
-		N5RemoveSpark.remove( sparkContext, n5Supplier );
+		N5RemoveSpark.remove( sparkContext, () -> new N5FSWriter( basePath ) );
 		Assert.assertFalse( Files.exists( Paths.get( basePath ) ) );
 	}
 }
