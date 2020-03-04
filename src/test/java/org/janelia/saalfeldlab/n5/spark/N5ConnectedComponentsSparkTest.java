@@ -25,24 +25,73 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
     static private final String relabeledDatasetPath = "data-relabeled";
 
     @Test
-    public void test1() throws IOException
+    public void test2D_blockSize1() throws IOException
     {
-        runTest( new int[] { 1, 1, 1 } );
+        runTest2D( new int[] { 4, 4 } );
     }
 
     @Test
-    public void test2() throws IOException
+    public void test2D_blockSize2() throws IOException
     {
-        runTest( new int[] { 2, 2, 2 } );
+        runTest2D( new int[] { 5, 2 } );
     }
 
     @Test
-    public void test3() throws IOException
+    public void test2D_blockSize3() throws IOException
     {
-        runTest( new int[] { 3, 4, 5 } );
+        runTest2D( new int[] { 1, 2 } );
     }
 
-    private void runTest( final int[] blockSize ) throws IOException
+    @Test
+    public void test3D_blockSize1() throws IOException
+    {
+        runTest3D( new int[] { 1, 1, 1 } );
+    }
+
+    @Test
+    public void test3D_blockSize2() throws IOException
+    {
+        runTest3D( new int[] { 2, 2, 2 } );
+    }
+
+    @Test
+    public void test3D_blockSize3() throws IOException
+    {
+        runTest3D( new int[] { 3, 4, 5 } );
+    }
+
+    private void runTest2D( final int[] blockSize ) throws IOException
+    {
+        final N5Writer n5 = new N5FSWriter( basePath );
+        final long[] dimensions = new long[] { 15, 4 };
+
+        final int[] data = {
+                0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+                0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1,
+                0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0,
+                0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0,
+        };
+
+        N5Utils.save( ArrayImgs.ints( data, dimensions ), n5, datasetPath, blockSize, new GzipCompression() );
+
+        N5ConnectedComponentsSpark.connectedComponents(
+                sparkContext,
+                () -> new N5FSWriter( basePath ),
+                datasetPath,
+                relabeledDatasetPath,
+                Optional.empty(),
+                Optional.empty() );
+
+        Assert.assertTrue( n5.datasetExists( datasetPath ) );
+        Assert.assertTrue( n5.datasetExists( relabeledDatasetPath ) );
+
+        final int[] expected = data;
+
+        final RandomAccessibleInterval< UnsignedLongType > output = N5Utils.open( n5, relabeledDatasetPath );
+        Assert.assertArrayEquals( expected, relabel( output ) );
+    }
+
+    private void runTest3D( final int[] blockSize ) throws IOException
     {
         final N5Writer n5 = new N5FSWriter( basePath );
         final long[] dimensions = new long[] { 4, 4, 3 };
