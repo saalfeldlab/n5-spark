@@ -15,7 +15,7 @@ import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.logic.BoolType;
-import net.imglib2.type.numeric.IntegerType;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedLongType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
@@ -61,7 +61,7 @@ public class N5ConnectedComponentsSpark
         Box
     }
 
-    public static < T extends IntegerType< T > & NativeType< T > > void connectedComponents(
+    public static < T extends RealType< T > & NativeType< T > > void connectedComponents(
             final JavaSparkContext sparkContext,
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
@@ -112,7 +112,7 @@ public class N5ConnectedComponentsSpark
         N5RemoveSpark.remove( sparkContext, n5Supplier, tempDatasetPath );
     }
 
-    private static < T extends IntegerType< T > & NativeType< T > > void generateBlockwiseLabeling(
+    private static < T extends RealType< T > & NativeType< T > > void generateBlockwiseLabeling(
             final JavaSparkContext sparkContext,
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
@@ -136,7 +136,7 @@ public class N5ConnectedComponentsSpark
 
             final RandomAccessibleInterval< BoolType > binaryInput = Converters.convert(
                     inputBlock,
-                    ( in, out ) -> out.set( in.getIntegerLong() != 0 ),
+                    ( in, out ) -> out.set( in.getRealDouble() > 0 ),
                     new BoolType() );
 
             boolean isEmpty = true;
