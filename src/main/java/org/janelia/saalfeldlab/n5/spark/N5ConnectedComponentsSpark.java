@@ -67,6 +67,7 @@ public class N5ConnectedComponentsSpark
             final String inputDatasetPath,
             final String outputDatasetPath,
             final NeighborhoodType neighborhoodType,
+            final Optional< Double > thresholdOptional,
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
     {
@@ -92,7 +93,8 @@ public class N5ConnectedComponentsSpark
                 n5Supplier,
                 inputDatasetPath,
                 tempDatasetPath,
-                neighborhoodType );
+                neighborhoodType,
+                thresholdOptional );
 
         final TLongLongHashMap parentsMap = findTouchingBlockwiseComponents(
                 sparkContext,
@@ -117,11 +119,14 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
             final String tempDatasetPath,
-            final NeighborhoodType neighborhoodType ) throws IOException
+            final NeighborhoodType neighborhoodType,
+            final Optional< Double > thresholdOptional ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
         final int[] blockSize = outputDatasetAttributes.getBlockSize();
+
+        final double threshold = thresholdOptional.isPresent() ? thresholdOptional.get() : 0;
 
         final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, blockSize ).getGridDimensions() );
         final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
@@ -134,10 +139,21 @@ public class N5ConnectedComponentsSpark
             final RandomAccessibleInterval< T > input = N5Utils.open( n5Local, inputDatasetPath );
             final RandomAccessibleInterval< T > inputBlock = Views.interval( input, outputBlockInterval );
 
-            final RandomAccessibleInterval< BoolType > binaryInput = Converters.convert(
+            final RandomAccessibleInterval< BoolType > binaryInput;
+            if ( threshold != 0 )
+            {
+                binaryInput = Converters.convert(
                     inputBlock,
-                    ( in, out ) -> out.set( in.getRealDouble() > 0 ),
+                    ( in, out ) -> out.set( in.getRealDouble() >= threshold ),
                     new BoolType() );
+            }
+            else
+            {
+                binaryInput = Converters.convert(
+                        inputBlock,
+                        ( in, out ) -> out.set( in.getRealDouble() > 0 ),
+                        new BoolType() );
+            }
 
             boolean isEmpty = true;
             for ( final Iterator< BoolType > it = Views.iterable( binaryInput ).iterator(); it.hasNext() && isEmpty; )
@@ -347,6 +363,7 @@ public class N5ConnectedComponentsSpark
                     parsedArgs.inputDatasetPath,
                     parsedArgs.outputDatasetPath,
                     parsedArgs.neighborhoodType,
+                    Optional.ofNullable( parsedArgs.threshold ),
                     Optional.ofNullable( parsedArgs.blockSize ),
                     Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
             );
@@ -364,7 +381,7 @@ public class N5ConnectedComponentsSpark
         private String n5Path;
 
         @Option(name = "-i", aliases = { "--inputDatasetPath" }, required = true,
-                usage = "Path to the input binary mask dataset within the N5 container (e.g. data/group/s0).")
+                usage = "Path to the input dataset within the N5 container (e.g. data/group/s0).")
         private String inputDatasetPath;
 
         @Option(name = "-o", aliases = { "--outputDatasetPath" }, required = true,
@@ -379,10 +396,14 @@ public class N5ConnectedComponentsSpark
                 usage = "Compression to be used for the converted dataset (same as input dataset compression by default).")
         private N5Compression n5Compression;
 
-        @Option(name = "-t", aliases = { "--type" }, required = false,
+        @Option(name = "--type", required = false,
                 usage = "Type of the neighborhood used to determine if pixels belong together or are located in separate components." +
                         "Can be either diamond (only adjacent pixels are included) or box (includes corner pixels as well).")
         private NeighborhoodType neighborhoodType = NeighborhoodType.Diamond;
+
+        @Option(name = "-t", aliases = { "--threshold" }, required = false,
+                usage = "Threshold (min) value to generate binary mask from the input data. By default all positive values are included.")
+        private Double threshold;
 
         private int[] blockSize;
 
