@@ -247,7 +247,6 @@ public class N5ConnectedComponentsSpark
 
         try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
                 .setAppName( "N5ConnectedComponentsSpark" )
-                .set( "spark.serializer", "org.apache.spark.serializer.KryoSerializer" )
         ) )
         {
             connectedComponents(
