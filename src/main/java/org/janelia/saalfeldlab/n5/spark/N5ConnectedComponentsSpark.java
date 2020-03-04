@@ -6,6 +6,8 @@ import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.labeling.ConnectedComponentAnalysis;
 import net.imglib2.algorithm.neighborhood.DiamondShape;
+import net.imglib2.algorithm.neighborhood.RectangleShape;
+import net.imglib2.algorithm.neighborhood.Shape;
 import net.imglib2.algorithm.util.unionfind.LongHashMapUnionFind;
 import net.imglib2.algorithm.util.unionfind.UnionFind;
 import net.imglib2.converter.Converters;
@@ -33,7 +35,12 @@ import org.kohsuke.args4j.Option;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -41,11 +48,25 @@ public class N5ConnectedComponentsSpark
 {
     private static final int MAX_PARTITIONS = 15000;
 
+    public enum NeighborhoodType
+    {
+        /**
+         Only direct neighbors are considered (4-neighborhood in 2D, 6-neighborhood in 3D).
+         */
+        Diamond,
+
+        /**
+         Diagonal neighbors are considered too (8-neighborhood in 2D, 26-neighborhood in 3D).
+         */
+        Box
+    }
+
     public static < T extends IntegerType< T > & NativeType< T > > void connectedComponents(
             final JavaSparkContext sparkContext,
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
             final String outputDatasetPath,
+            final NeighborhoodType neighborhoodType,
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
     {
@@ -65,12 +86,28 @@ public class N5ConnectedComponentsSpark
         final Compression outputCompression = compressionOptional.isPresent() ? compressionOptional.get() : inputCompression;
 
         n5.createDataset( tempDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
-        generateBlockwiseLabeling( sparkContext, n5Supplier, inputDatasetPath, tempDatasetPath );
 
-        final TLongLongHashMap parentsMap = findTouchingBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath );
+        generateBlockwiseLabeling(
+                sparkContext,
+                n5Supplier,
+                inputDatasetPath,
+                tempDatasetPath,
+                neighborhoodType );
+
+        final TLongLongHashMap parentsMap = findTouchingBlockwiseComponents(
+                sparkContext,
+                n5Supplier,
+                tempDatasetPath,
+                neighborhoodType );
 
         n5.createDataset( outputDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
-        relabelBlockwiseComponents( sparkContext, n5Supplier, tempDatasetPath, outputDatasetPath, parentsMap );
+
+        relabelBlockwiseComponents(
+                sparkContext,
+                n5Supplier,
+                tempDatasetPath,
+                outputDatasetPath,
+                parentsMap );
 
         N5RemoveSpark.remove( sparkContext, n5Supplier, tempDatasetPath );
     }
@@ -79,7 +116,8 @@ public class N5ConnectedComponentsSpark
             final JavaSparkContext sparkContext,
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
-            final String tempDatasetPath ) throws IOException
+            final String tempDatasetPath,
+            final NeighborhoodType neighborhoodType ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
@@ -111,10 +149,23 @@ public class N5ConnectedComponentsSpark
                     ArrayImgs.unsignedLongs( Intervals.dimensionsAsLongArray( outputBlockInterval ) ),
                     Intervals.minAsLongArray( outputBlockInterval ) );
 
+            final Shape neighborhoodShape;
+            switch (neighborhoodType)
+            {
+                case Diamond:
+                    neighborhoodShape = new DiamondShape( 1 );
+                    break;
+                case Box:
+                    neighborhoodShape = new RectangleShape( 1, true );
+                    break;
+                default:
+                    throw new IllegalArgumentException( "Unknown or null neighborhood type: " + neighborhoodType );
+            }
+
             ConnectedComponentAnalysis.connectedComponents(
                     binaryInput,
                     outputBlock,
-                    new DiamondShape( 1 ),
+                    neighborhoodShape,
                     n -> new LongHashMapUnionFind(),
                     ConnectedComponentAnalysis.idFromIntervalIndexer( input ),
                     root -> root + 1 );
@@ -130,7 +181,8 @@ public class N5ConnectedComponentsSpark
     private static TLongLongHashMap findTouchingBlockwiseComponents(
             final JavaSparkContext sparkContext,
             final N5ReaderSupplier n5Supplier,
-            final String tempDatasetPath ) throws IOException
+            final String tempDatasetPath,
+            final NeighborhoodType neighborhoodType ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
@@ -152,22 +204,65 @@ public class N5ConnectedComponentsSpark
                 if ( blockInterval.max( d ) >= labeling.max( d ) )
                     continue;
 
-                final Cursor< UnsignedLongType >[] planeCursors = new Cursor[ 2 ];
-                for ( int i = 0; i < 2; ++i )
+                if ( neighborhoodType == NeighborhoodType.Diamond )
                 {
-                    final long[] sliceMin = Intervals.minAsLongArray( blockInterval ), sliceMax = Intervals.maxAsLongArray( blockInterval );
-                    sliceMin[ d ] = sliceMax[ d ] = blockInterval.max( d ) + i;
-                    final RandomAccessibleInterval< UnsignedLongType > plane = Views.interval( labeling, sliceMin, sliceMax );
-                    planeCursors[ i ] = Views.flatIterable( plane ).cursor();
-                }
+                    // test the last plane of the current block against the first plane of the next block
+                    final Cursor< UnsignedLongType >[] planeCursors = new Cursor[ 2 ];
+                    for ( int i = 0; i < 2; ++i )
+                    {
+                        final long[] sliceMin = Intervals.minAsLongArray( blockInterval ), sliceMax = Intervals.maxAsLongArray( blockInterval );
+                        sliceMin[ d ] = sliceMax[ d ] = blockInterval.max( d ) + i;
+                        final RandomAccessibleInterval< UnsignedLongType > plane = Views.interval( labeling, sliceMin, sliceMax );
+                        planeCursors[ i ] = Views.flatIterable( plane ).cursor();
+                    }
 
-                // find correspondences between touching ids in the current block and in the next block
-                while ( planeCursors[ 0 ].hasNext() || planeCursors[ 1 ].hasNext() )
+                    while ( planeCursors[ 0 ].hasNext() || planeCursors[ 1 ].hasNext() )
+                    {
+                        final long x = planeCursors[ 0 ].next().getLong();
+                        final long y = planeCursors[ 1 ].next().getLong();
+                        if ( x != 0 && y != 0 )
+                            blockTouchingPairs.add( Arrays.asList( x, y ) );
+                    }
+                }
+                else if ( neighborhoodType == NeighborhoodType.Box )
                 {
-                    final long x = planeCursors[ 0 ].next().getLong();
-                    final long y = planeCursors[ 1 ].next().getLong();
-                    if ( x != 0 && y != 0 )
-                        blockTouchingPairs.add( Arrays.asList( x, y ) );
+                    // test the last plane of the current block against the rectangular neighborhood of the next blocks
+                    final long[] sliceMin = Intervals.minAsLongArray( blockInterval ), sliceMax = Intervals.maxAsLongArray( blockInterval );
+                    sliceMin[ d ] = sliceMax[ d ] = blockInterval.max( d );
+                    final RandomAccessibleInterval< UnsignedLongType > plane = Views.interval( labeling, sliceMin, sliceMax );
+                    final Cursor< UnsignedLongType > planeCursor = Views.flatIterable( plane ).localizingCursor();
+                    final long[] position = new long[ plane.numDimensions() ], nextMin = new long[ plane.numDimensions() ], nextMax = new long[ plane.numDimensions() ];
+
+                    while ( planeCursor.hasNext() )
+                    {
+                        final long x = planeCursor.next().getLong();
+                        if ( x != 0 )
+                        {
+                            planeCursor.localize( position );
+                            for ( int k = 0; k < position.length; ++k )
+                            {
+                                if ( k != d )
+                                {
+                                    nextMin[ k ] = Math.max( position[ k ] - 1, 0 );
+                                    nextMax[ k ] = Math.min( position[ k ] + 1, labeling.max( k ) );
+                                }
+                            }
+                            nextMin[ d ] = nextMax[ d ] = position[ d ] + 1;
+
+                            final RandomAccessibleInterval< UnsignedLongType > neighborhood = Views.interval( labeling, nextMin, nextMax );
+                            final Cursor< UnsignedLongType > neighborhoodCursor = Views.iterable( neighborhood ).cursor();
+                            while ( neighborhoodCursor.hasNext() )
+                            {
+                                final long y = neighborhoodCursor.next().get();
+                                if ( y != 0 )
+                                    blockTouchingPairs.add( Arrays.asList( x, y ) );
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    throw new IllegalArgumentException( "Unknown or null neighborhood type: " + neighborhoodType );
                 }
             }
             return blockTouchingPairs;
@@ -242,20 +337,18 @@ public class N5ConnectedComponentsSpark
     public static void main( final String... args ) throws IOException
     {
         final Arguments parsedArgs = new Arguments( args );
-        if ( !parsedArgs.parsedSuccessfully() )
-            System.exit( 1 );
-
         try ( final JavaSparkContext sparkContext = new JavaSparkContext( new SparkConf()
                 .setAppName( "N5ConnectedComponentsSpark" )
         ) )
         {
             connectedComponents(
                     sparkContext,
-                    () -> new N5FSWriter( parsedArgs.getN5Path() ),
-                    parsedArgs.getInputDatasetPath(),
-                    parsedArgs.getOutputDatasetPath(),
-                    Optional.ofNullable( parsedArgs.getBlockSize() ),
-                    Optional.ofNullable( parsedArgs.getCompression() )
+                    () -> new N5FSWriter( parsedArgs.n5Path ),
+                    parsedArgs.inputDatasetPath,
+                    parsedArgs.outputDatasetPath,
+                    parsedArgs.neighborhoodType,
+                    Optional.ofNullable( parsedArgs.blockSize ),
+                    Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
             );
         }
 
@@ -286,8 +379,12 @@ public class N5ConnectedComponentsSpark
                 usage = "Compression to be used for the converted dataset (same as input dataset compression by default).")
         private N5Compression n5Compression;
 
+        @Option(name = "-t", aliases = { "--type" }, required = false,
+                usage = "Type of the neighborhood used to determine if pixels belong together or are located in separate components." +
+                        "Can be either diamond (only adjacent pixels are included) or box (includes corner pixels as well).")
+        private NeighborhoodType neighborhoodType = NeighborhoodType.Diamond;
+
         private int[] blockSize;
-        private boolean parsedSuccessfully = false;
 
         public Arguments( final String... args )
         {
@@ -296,20 +393,13 @@ public class N5ConnectedComponentsSpark
             {
                 parser.parseArgument( args );
                 blockSize = blockSizeStr != null ? CmdUtils.parseIntArray( blockSizeStr ) : null;
-                parsedSuccessfully = true;
             }
             catch ( final CmdLineException e )
             {
                 System.err.println( e.getMessage() );
                 parser.printUsage( System.err );
+                System.exit( 1 );
             }
         }
-
-        public boolean parsedSuccessfully() { return parsedSuccessfully; }
-        public String getN5Path() { return n5Path; }
-        public String getInputDatasetPath() { return inputDatasetPath; }
-        public String getOutputDatasetPath() { return outputDatasetPath; }
-        public int[] getBlockSize() { return blockSize; }
-        public Compression getCompression() { return n5Compression != null ? n5Compression.get() : null; }
     }
 }
