@@ -48,7 +48,7 @@ public class N5ConnectedComponentsSpark
 {
     private static final int MAX_PARTITIONS = 15000;
 
-    public enum NeighborhoodType
+    public enum NeighborhoodShapeType
     {
         /**
          Only direct neighbors are considered (4-neighborhood in 2D, 6-neighborhood in 3D).
@@ -66,7 +66,7 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
             final String outputDatasetPath,
-            final NeighborhoodType neighborhoodType,
+            final NeighborhoodShapeType neighborhoodShapeType,
             final Optional< Double > thresholdOptional,
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
@@ -93,14 +93,14 @@ public class N5ConnectedComponentsSpark
                 n5Supplier,
                 inputDatasetPath,
                 tempDatasetPath,
-                neighborhoodType,
+                neighborhoodShapeType,
                 thresholdOptional );
 
         final TLongLongHashMap parentsMap = findTouchingBlockwiseComponents(
                 sparkContext,
                 n5Supplier,
                 tempDatasetPath,
-                neighborhoodType );
+                neighborhoodShapeType );
 
         n5.createDataset( outputDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
 
@@ -119,7 +119,7 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
             final String tempDatasetPath,
-            final NeighborhoodType neighborhoodType,
+            final NeighborhoodShapeType neighborhoodShapeType,
             final Optional< Double > thresholdOptional ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
@@ -166,7 +166,7 @@ public class N5ConnectedComponentsSpark
                     Intervals.minAsLongArray( outputBlockInterval ) );
 
             final Shape neighborhoodShape;
-            switch (neighborhoodType)
+            switch (neighborhoodShapeType)
             {
                 case Diamond:
                     neighborhoodShape = new DiamondShape( 1 );
@@ -175,7 +175,7 @@ public class N5ConnectedComponentsSpark
                     neighborhoodShape = new RectangleShape( 1, true );
                     break;
                 default:
-                    throw new IllegalArgumentException( "Unknown or null neighborhood type: " + neighborhoodType );
+                    throw new IllegalArgumentException( "Unknown or null neighborhood shape type: " + neighborhoodShapeType );
             }
 
             ConnectedComponentAnalysis.connectedComponents(
@@ -198,7 +198,7 @@ public class N5ConnectedComponentsSpark
             final JavaSparkContext sparkContext,
             final N5ReaderSupplier n5Supplier,
             final String tempDatasetPath,
-            final NeighborhoodType neighborhoodType ) throws IOException
+            final NeighborhoodShapeType neighborhoodShapeType ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
@@ -220,7 +220,7 @@ public class N5ConnectedComponentsSpark
                 if ( blockInterval.max( d ) >= labeling.max( d ) )
                     continue;
 
-                if ( neighborhoodType == NeighborhoodType.Diamond )
+                if ( neighborhoodShapeType == NeighborhoodShapeType.Diamond )
                 {
                     // test the last plane of the current block against the first plane of the next block
                     final Cursor< UnsignedLongType >[] planeCursors = new Cursor[ 2 ];
@@ -240,7 +240,7 @@ public class N5ConnectedComponentsSpark
                             blockTouchingPairs.add( Arrays.asList( x, y ) );
                     }
                 }
-                else if ( neighborhoodType == NeighborhoodType.Box )
+                else if ( neighborhoodShapeType == NeighborhoodShapeType.Box )
                 {
                     // test the last plane of the current block against the rectangular neighborhood of the next blocks
                     final long[] sliceMin = Intervals.minAsLongArray( blockInterval ), sliceMax = Intervals.maxAsLongArray( blockInterval );
@@ -278,7 +278,7 @@ public class N5ConnectedComponentsSpark
                 }
                 else
                 {
-                    throw new IllegalArgumentException( "Unknown or null neighborhood type: " + neighborhoodType );
+                    throw new IllegalArgumentException( "Unknown or null neighborhood shape type: " + neighborhoodShapeType );
                 }
             }
             return blockTouchingPairs;
@@ -362,7 +362,7 @@ public class N5ConnectedComponentsSpark
                     () -> new N5FSWriter( parsedArgs.n5Path ),
                     parsedArgs.inputDatasetPath,
                     parsedArgs.outputDatasetPath,
-                    parsedArgs.neighborhoodType,
+                    parsedArgs.neighborhoodShapeType,
                     Optional.ofNullable( parsedArgs.threshold ),
                     Optional.ofNullable( parsedArgs.blockSize ),
                     Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
@@ -396,10 +396,10 @@ public class N5ConnectedComponentsSpark
                 usage = "Compression to be used for the converted dataset (same as input dataset compression by default).")
         private N5Compression n5Compression;
 
-        @Option(name = "--type", required = false,
-                usage = "Type of the neighborhood used to determine if pixels belong together or are located in separate components." +
+        @Option(name = "-s", aliases = { "--shape" }, required = false,
+                usage = "Shape of the neighborhood used to determine if pixels belong together or are located in separate components." +
                         "Can be either diamond (only adjacent pixels are included) or box (includes corner pixels as well).")
-        private NeighborhoodType neighborhoodType = NeighborhoodType.Diamond;
+        private NeighborhoodShapeType neighborhoodShapeType = NeighborhoodShapeType.Diamond;
 
         @Option(name = "-t", aliases = { "--threshold" }, required = false,
                 usage = "Threshold (min) value to generate binary mask from the input data. By default all positive values are included.")

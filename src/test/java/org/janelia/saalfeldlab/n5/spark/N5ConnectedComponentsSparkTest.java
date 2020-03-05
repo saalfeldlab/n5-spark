@@ -74,11 +74,11 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
 
         N5Utils.save( ArrayImgs.ints( data, dimensions ), n5, datasetPath, blockSize, new GzipCompression() );
 
-        final Map< N5ConnectedComponentsSpark.NeighborhoodType, int[] > typeAndExpected = new HashMap<>();
-        typeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodType.Diamond, data ); // single component
-        typeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodType.Box, data ); // single component
+        final Map< N5ConnectedComponentsSpark.NeighborhoodShapeType, int[] > shapeTypeAndExpected = new HashMap<>();
+        shapeTypeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodShapeType.Diamond, data ); // single component
+        shapeTypeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodShapeType.Box, data ); // single component
 
-        runTest( n5, typeAndExpected );
+        runTest( n5, shapeTypeAndExpected );
     }
 
     private void runTest3D( final int[] blockSize ) throws IOException
@@ -105,7 +105,7 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
 
         N5Utils.save( ArrayImgs.ints( data, dimensions ), n5, datasetPath, blockSize, new GzipCompression() );
 
-        final int[] expectedDiamondNeighborhoodType = {
+        final int[] expectedForDiamondNeighborhoodShapeType = {
                 0, 1, 1, 0,
                 1, 0, 1, 1,
                 1, 1, 1, 0,
@@ -122,23 +122,23 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
                 0, 1, 0, 2,
         };
 
-        final Map< N5ConnectedComponentsSpark.NeighborhoodType, int[] > typeAndExpected = new HashMap<>();
-        typeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodType.Diamond, expectedDiamondNeighborhoodType );
-        typeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodType.Box, data ); // single component
+        final Map< N5ConnectedComponentsSpark.NeighborhoodShapeType, int[] > shapeTypeAndExpected = new HashMap<>();
+        shapeTypeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodShapeType.Diamond, expectedForDiamondNeighborhoodShapeType );
+        shapeTypeAndExpected.put( N5ConnectedComponentsSpark.NeighborhoodShapeType.Box, data ); // single component
 
-        runTest( n5, typeAndExpected );
+        runTest( n5, shapeTypeAndExpected );
     }
 
-    private void runTest( final N5Writer n5, final Map< N5ConnectedComponentsSpark.NeighborhoodType, int[] > typeAndExpected ) throws IOException
+    private void runTest( final N5Writer n5, final Map< N5ConnectedComponentsSpark.NeighborhoodShapeType, int[] > shapeTypeAndExpected ) throws IOException
     {
-        for ( final Map.Entry< N5ConnectedComponentsSpark.NeighborhoodType, int[] > typeAndExpectedEntry : typeAndExpected.entrySet() )
+        for ( final Map.Entry< N5ConnectedComponentsSpark.NeighborhoodShapeType, int[] > shapeTypeAndExpectedEntry : shapeTypeAndExpected.entrySet() )
         {
             N5ConnectedComponentsSpark.connectedComponents(
                     sparkContext,
                     () -> new N5FSWriter( basePath ),
                     datasetPath,
                     relabeledDatasetPath,
-                    typeAndExpectedEntry.getKey(),
+                    shapeTypeAndExpectedEntry.getKey(),
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty() );
@@ -147,7 +147,7 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
             Assert.assertTrue( n5.datasetExists( relabeledDatasetPath ) );
 
             final RandomAccessibleInterval< UnsignedLongType > output = N5Utils.open( n5, relabeledDatasetPath );
-            Assert.assertArrayEquals( typeAndExpectedEntry.getValue(), relabel( output ) );
+            Assert.assertArrayEquals( shapeTypeAndExpectedEntry.getValue(), relabel( output ) );
 
             Assert.assertTrue( n5.remove( relabeledDatasetPath ) );
         }
