@@ -63,7 +63,28 @@ public class N5ConnectedComponentsSpark
         Box
     }
 
-    public static < T extends RealType< T > & NativeType< T > > void connectedComponents(
+    public static void connectedComponents(
+            final JavaSparkContext sparkContext,
+            final N5WriterSupplier n5Supplier,
+            final String inputDatasetPath,
+            final String outputDatasetPath,
+            final NeighborhoodShapeType neighborhoodShapeType,
+            final Optional< Double > thresholdOptional,
+            final Optional< Long > minSizeOptional ) throws IOException
+    {
+        connectedComponents(
+                sparkContext,
+                n5Supplier,
+                inputDatasetPath,
+                outputDatasetPath,
+                neighborhoodShapeType,
+                thresholdOptional,
+                minSizeOptional,
+                Optional.empty(),
+                Optional.empty() );
+    }
+
+    public static void connectedComponents(
             final JavaSparkContext sparkContext,
             final N5WriterSupplier n5Supplier,
             final String inputDatasetPath,
