@@ -73,8 +73,9 @@ spark-janelia/n5-connected-components.py
 -n <path to n5 root> 
 -i <input dataset>
 -o <output dataset>
-[-t <min threshold value>]
+[-t <min threshold value for input data>]
 [-s <neighborhood shape, can be 'diamond' or 'box'>]
+[-m <min size of accepted connected components in pixels>]
 [-b <output block size>]
 [-c <output compression scheme>]
 ```
@@ -88,8 +89,9 @@ spark-local/n5-connected-components.py
 -n <path to n5 root> 
 -i <input dataset>
 -o <output dataset>
-[-t <min threshold value>]
+[-t <min threshold value for input data>]
 [-s <neighborhood shape, can be 'diamond' or 'box'>]
+[-m <min size of accepted connected components in pixels>]
 [-b <output block size>]
 [-c <output compression scheme>]
 ```
@@ -102,6 +104,7 @@ Optional parameters:
 * **Neighborhood shape**: specifies how pixels are grouped into connected components. There are two options:
   * Diamond (default): only direct neighbors are considered (4-neighborhood in 2D, 6-neighborhood in 3D).
   * Box (`-s box`): diagonal pixels are considered as well (8-neighborhood in 2D, 26-neighborhood in 3D). It can be used to decrease the number of trivial components.
+* **Min size**: minimum size of a connected component in pixels. If specified, components that contain fewer number of pixels are discarded from the resulting set. By default all components are kept.
 * *block size*: comma-separated list. If omitted, the block size of the input dataset is used.
 * *compression scheme*: if omitted, the compression scheme of the input dataset is used.
 
