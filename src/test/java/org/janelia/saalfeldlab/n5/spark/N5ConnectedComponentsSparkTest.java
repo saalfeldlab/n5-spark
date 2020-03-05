@@ -140,6 +140,7 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
                     relabeledDatasetPath,
                     typeAndExpectedEntry.getKey(),
                     Optional.empty(),
+                    Optional.empty(),
                     Optional.empty() );
 
             Assert.assertTrue( n5.datasetExists( datasetPath ) );
