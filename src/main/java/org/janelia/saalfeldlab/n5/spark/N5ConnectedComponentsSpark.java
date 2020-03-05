@@ -36,9 +36,11 @@ import org.kohsuke.args4j.Option;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -68,9 +70,12 @@ public class N5ConnectedComponentsSpark
             final String outputDatasetPath,
             final NeighborhoodShapeType neighborhoodShapeType,
             final Optional< Double > thresholdOptional,
+            final Optional< Long > minSizeOptional,
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
     {
+        boolean needFilteringBySize = minSizeOptional.isPresent() && minSizeOptional.get().longValue() > 1;
+
         final N5Writer n5 = n5Supplier.get();
         if ( n5.datasetExists( outputDatasetPath ) )
             throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
@@ -78,6 +83,10 @@ public class N5ConnectedComponentsSpark
         final String tempDatasetPath = outputDatasetPath + "-blockwise";
         if ( n5.datasetExists( tempDatasetPath ) )
             throw new RuntimeException( "Temporary dataset already exists: " + tempDatasetPath );
+
+        final String notFilteredBySizeDatasetPath = needFilteringBySize ? outputDatasetPath + "-not-filtered-by-size" : null;
+        if ( notFilteredBySizeDatasetPath != null && n5.datasetExists( notFilteredBySizeDatasetPath ) )
+            throw new RuntimeException( "Temporary dataset already exists: " + notFilteredBySizeDatasetPath );
 
         final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
         final long[] dimensions = inputAttributes.getDimensions();
@@ -102,16 +111,31 @@ public class N5ConnectedComponentsSpark
                 tempDatasetPath,
                 neighborhoodShapeType );
 
-        n5.createDataset( outputDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
+        final String relabeledDatasetPath = needFilteringBySize ? notFilteredBySizeDatasetPath : outputDatasetPath;
+        n5.createDataset( relabeledDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
 
         relabelBlockwiseComponents(
                 sparkContext,
                 n5Supplier,
                 tempDatasetPath,
-                outputDatasetPath,
+                relabeledDatasetPath,
                 parentsMap );
 
         N5RemoveSpark.remove( sparkContext, n5Supplier, tempDatasetPath );
+
+        if ( needFilteringBySize)
+        {
+            n5.createDataset( outputDatasetPath, dimensions, outputBlockSize, DataType.UINT64, outputCompression );
+
+            filterComponentsBySize(
+                    sparkContext,
+                    n5Supplier,
+                    notFilteredBySizeDatasetPath,
+                    outputDatasetPath,
+                    minSizeOptional.get() );
+
+            N5RemoveSpark.remove( sparkContext, n5Supplier, notFilteredBySizeDatasetPath );
+        }
     }
 
     private static < T extends RealType< T > & NativeType< T > > void generateBlockwiseLabeling(
@@ -209,9 +233,9 @@ public class N5ConnectedComponentsSpark
 
         final Set< List< Long > > touchingPairs = sparkContext
                 .parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) )
-                .map( outputBlockIndex ->
+                .map( blockIndex ->
         {
-            final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), outputBlockIndex );
+            final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), blockIndex );
             final RandomAccessibleInterval< UnsignedLongType > labeling = N5Utils.open( n5Supplier.get(), tempDatasetPath );
 
             final Set< List< Long > > blockTouchingPairs = new HashSet<>();
@@ -318,9 +342,9 @@ public class N5ConnectedComponentsSpark
 
         final Broadcast< TLongLongHashMap > parentsMapBroadcast = sparkContext.broadcast( parentsMap );
 
-        sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( outputBlockIndex ->
+        sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( blockIndex ->
         {
-            final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), outputBlockIndex );
+            final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), blockIndex );
             final N5Writer n5Local = n5Supplier.get();
             final TLongLongHashMap parentsMapLocal = parentsMapBroadcast.getValue();
             final RandomAccessibleInterval<UnsignedLongType> input = N5Utils.open( n5Local, tempDatasetPath );
@@ -350,6 +374,88 @@ public class N5ConnectedComponentsSpark
         parentsMapBroadcast.destroy();
     }
 
+    private static void filterComponentsBySize(
+            final JavaSparkContext sparkContext,
+            final N5WriterSupplier n5Supplier,
+            final String relabeledDatasetPath,
+            final String outputDatasetPath,
+            final long minSize ) throws IOException
+    {
+        // collect pixels counts for each component
+        final DatasetAttributes attributes = n5Supplier.get().getDatasetAttributes( relabeledDatasetPath );
+        final long[] dimensions = attributes.getDimensions();
+        final int[] blockSize = attributes.getBlockSize();
+
+        final long numBlocks = Intervals.numElements( new CellGrid( dimensions, blockSize ).getGridDimensions() );
+        final List< Long > blockIndexes = LongStream.range( 0, numBlocks ).boxed().collect( Collectors.toList() );
+
+        // NOTE: cannot safely use TLongLongHashMap here because of its bug with kryo serialization:
+        // https://gist.github.com/igorpisarev/df606373c587211af064e814808193ef
+        final Map< Long, Long > componentsIdsAndSize = sparkContext
+                .parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) )
+                .map( blockIndex ->
+                {
+                    final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), blockIndex );
+                    final RandomAccessibleInterval< UnsignedLongType > labels = N5Utils.open( n5Supplier.get(), relabeledDatasetPath );
+                    final RandomAccessibleInterval< UnsignedLongType > labelsBlock = Views.interval( labels, blockInterval );
+
+                    final Map< Long, Long > localIds = new HashMap<>();
+                    for ( final UnsignedLongType val : Views.iterable( labelsBlock ) )
+                        if ( val.get() != 0 )
+                            localIds.put( val.get(), localIds.getOrDefault( val.get(), ( long ) 0 ) + 1 );
+
+                    return localIds;
+                } )
+                .treeReduce(
+                        ( a, b ) -> {
+                            for ( final Map.Entry< Long, Long > be : b.entrySet() )
+                                a.put( be.getKey(), a.getOrDefault( be.getKey(), ( long ) 0 ) + be.getValue() );
+                            return a;
+                        },
+                        Integer.MAX_VALUE // max possible aggregation depth
+                );
+
+        // filter the components by the specified min size
+        final Set< Long > filteredComponentsIds = componentsIdsAndSize.entrySet().stream()
+                .filter( entry -> entry.getValue() >= minSize )
+                .map( Map.Entry::getKey )
+                .collect( Collectors.toSet() );
+
+        // write out the filtered components
+        final Broadcast< Set< Long > > filteredComponentsIdsBroadcast = sparkContext.broadcast( filteredComponentsIds );
+
+        sparkContext.parallelize( blockIndexes, Math.min( blockIndexes.size(), MAX_PARTITIONS ) ).foreach( blockIndex ->
+        {
+            final Interval blockInterval = GridUtils.getCellInterval( new CellGrid( dimensions, blockSize ), blockIndex );
+            final N5Writer n5Local = n5Supplier.get();
+            final Set< Long > filteredComponentsIdsLocal = filteredComponentsIdsBroadcast.getValue();
+            final RandomAccessibleInterval<UnsignedLongType> input = N5Utils.open( n5Local, relabeledDatasetPath );
+            final RandomAccessibleInterval<UnsignedLongType> inputBlock = Views.interval( input, blockInterval );
+
+            final RandomAccessibleInterval< UnsignedLongType > outputBlock = Views.translate(
+                    ArrayImgs.unsignedLongs( Intervals.dimensionsAsLongArray( blockInterval ) ),
+                    Intervals.minAsLongArray( blockInterval ) );
+
+            final Cursor< UnsignedLongType > inputCursor = Views.flatIterable( inputBlock ).cursor();
+            final Cursor< UnsignedLongType > outputCursor = Views.flatIterable( outputBlock ).cursor();
+            while ( inputCursor.hasNext() || outputCursor.hasNext() )
+            {
+                final long inputId = inputCursor.next().get();
+                final UnsignedLongType outputVal = outputCursor.next();
+                if ( inputId != 0 && filteredComponentsIdsLocal.contains( inputId ) )
+                    outputVal.set( inputId );
+            }
+
+            N5Utils.saveNonEmptyBlock(
+                    outputBlock,
+                    n5Local,
+                    outputDatasetPath,
+                    new UnsignedLongType() );
+        } );
+
+        filteredComponentsIdsBroadcast.destroy();
+    }
+
     public static void main( final String... args ) throws IOException
     {
         final Arguments parsedArgs = new Arguments( args );
@@ -364,6 +470,7 @@ public class N5ConnectedComponentsSpark
                     parsedArgs.outputDatasetPath,
                     parsedArgs.neighborhoodShapeType,
                     Optional.ofNullable( parsedArgs.threshold ),
+                    Optional.ofNullable( parsedArgs.minSize ),
                     Optional.ofNullable( parsedArgs.blockSize ),
                     Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
             );
@@ -404,6 +511,11 @@ public class N5ConnectedComponentsSpark
         @Option(name = "-t", aliases = { "--threshold" }, required = false,
                 usage = "Threshold (min) value to generate binary mask from the input data. By default all positive values are included.")
         private Double threshold;
+
+        @Option(name = "-m", aliases = { "--minSize" }, required = false,
+                usage = "If specified, connected components that contain fewer pixels than minSize will be discarded from the resulting dataset." +
+                        "By default all connected components are kept.")
+        private Long minSize;
 
         private int[] blockSize;
 
