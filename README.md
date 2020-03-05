@@ -73,8 +73,8 @@ spark-janelia/n5-connected-components.py
 -n <path to n5 root> 
 -i <input dataset>
 -o <output dataset>
-[--t <min threshold value>]
-[--type <neighborhood type, can be 'diamond' or 'box'>]
+[-t <min threshold value>]
+[-s <neighborhood shape, can be 'diamond' or 'box'>]
 [-b <output block size>]
 [-c <output compression scheme>]
 ```
@@ -88,8 +88,8 @@ spark-local/n5-connected-components.py
 -n <path to n5 root> 
 -i <input dataset>
 -o <output dataset>
-[--t <min threshold value>]
-[--type <neighborhood type, can be 'diamond' or 'box'>]
+[-t <min threshold value>]
+[-s <neighborhood shape, can be 'diamond' or 'box'>]
 [-b <output block size>]
 [-c <output compression scheme>]
 ```
@@ -101,9 +101,9 @@ Finds and labels all connected components in a binary mask extracted from the in
 
 Optional parameters:
 * **Threshold**: min value in the input data to be included in the binary mask. The condition is `input >= threshold`. If omitted, all input values higher than 0 are included in the binary mask (`input > 0`).
-* **Neighborhood type**: specifies how pixels are grouped into connected components. There are two options:
+* **Neighborhood shape**: specifies how pixels are grouped into connected components. There are two options:
   * Diamond (default): only direct neighbors are considered (4-neighborhood in 2D, 6-neighborhood in 3D).
-  * Box (`--type box`): diagonal pixels are considered as well (8-neighborhood in 2D, 26-neighborhood in 3D). It can be used to decrease the number of trivial components.
+  * Box (`-s box`): diagonal pixels are considered as well (8-neighborhood in 2D, 26-neighborhood in 3D). It can be used to decrease the number of trivial components.
 * *block size*: comma-separated list. If omitted, the block size of the input dataset is used.
 * *compression scheme*: if omitted, the compression scheme of the input dataset is used.
 
