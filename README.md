@@ -95,8 +95,6 @@ spark-local/n5-connected-components.py
 ```
 </details>
 
-<br/>
-
 Finds and labels all connected components in a binary mask extracted from the input N5 dataset and saves the relabeled dataset as an `uint64` output dataset.
 
 Optional parameters:
@@ -146,8 +144,6 @@ spark-local/n5-convert.py
 [--force to overwrite output dataset if already exists]
 ```
 </details>
-
-<br/>
 
 Resaves an N5 dataset possibly changing all or some of the following dataset attributes:
 * *block size*: if omitted, the block size of the input dataset is used.
