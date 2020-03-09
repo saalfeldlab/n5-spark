@@ -15,9 +15,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
 {
@@ -146,31 +144,18 @@ public class N5ConnectedComponentsSparkTest extends AbstractN5SparkTest
             Assert.assertTrue( n5.datasetExists( relabeledDatasetPath ) );
 
             final RandomAccessibleInterval< UnsignedLongType > output = N5Utils.open( n5, relabeledDatasetPath );
-            Assert.assertArrayEquals( shapeTypeAndExpectedEntry.getValue(), relabel( output ) );
+            Assert.assertArrayEquals( shapeTypeAndExpectedEntry.getValue(), imgToArray( output ) );
 
             Assert.assertTrue( n5.remove( relabeledDatasetPath ) );
         }
     }
 
-    private int[] relabel( final RandomAccessibleInterval< ? extends IntegerType<?>> labelsImg )
+    private int[] imgToArray( final RandomAccessibleInterval< ? extends IntegerType< ? > > img )
     {
-        final int[] relabeledData = new int[ ( int ) Intervals.numElements( labelsImg ) ];
+        final int[] data = new int[ ( int ) Intervals.numElements( img ) ];
         int index = 0;
-        final Map< Long, Integer > mapping = new HashMap<>();
-
-        final Cursor< ? extends IntegerType<?>> outputCursor = Views.flatIterable( labelsImg ).cursor();
-        while ( outputCursor.hasNext() )
-        {
-            final long id = outputCursor.next().getIntegerLong();
-            if ( id != 0 )
-            {
-                if ( !mapping.containsKey( id ) )
-                    mapping.put( id, mapping.size() + 1 );
-                relabeledData[ index ] = mapping.get( id );
-            }
-            ++index;
-        }
-
-        return relabeledData;
+        for ( final IntegerType< ? > val : Views.flatIterable( img ) )
+            data[ index++ ] = val.getInteger();
+        return data;
     }
 }
