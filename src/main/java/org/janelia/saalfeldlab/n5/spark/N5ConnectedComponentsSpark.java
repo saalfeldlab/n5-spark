@@ -62,8 +62,8 @@ public class N5ConnectedComponentsSpark
             final String inputDatasetPath,
             final String outputDatasetPath,
             final NeighborhoodShapeType neighborhoodShapeType,
-            final Optional< Double > thresholdOptional,
-            final Optional< Long > minSizeOptional ) throws IOException
+            final OptionalDouble thresholdOptional,
+            final OptionalLong minSizeOptional ) throws IOException
     {
         connectedComponents(
                 sparkContext,
@@ -83,8 +83,8 @@ public class N5ConnectedComponentsSpark
             final String inputDatasetPath,
             final String outputDatasetPath,
             final NeighborhoodShapeType neighborhoodShapeType,
-            final Optional< Double > thresholdOptional,
-            final Optional< Long > minSizeOptional,
+            final OptionalDouble thresholdOptional,
+            final OptionalLong minSizeOptional,
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
     {
@@ -147,13 +147,13 @@ public class N5ConnectedComponentsSpark
             final String inputDatasetPath,
             final String tempDatasetPath,
             final NeighborhoodShapeType neighborhoodShapeType,
-            final Optional< Double > thresholdOptional ) throws IOException
+            final OptionalDouble thresholdOptional ) throws IOException
     {
         final DatasetAttributes outputDatasetAttributes = n5Supplier.get().getDatasetAttributes( tempDatasetPath );
         final long[] dimensions = outputDatasetAttributes.getDimensions();
         final int[] blockSize = outputDatasetAttributes.getBlockSize();
 
-        final double threshold = thresholdOptional.isPresent() ? thresholdOptional.get() : 0;
+        final double threshold = thresholdOptional.orElse( 0 );
 
         final long numOutputBlocks = Intervals.numElements( new CellGrid( dimensions, blockSize ).getGridDimensions() );
         final List< Long > outputBlockIndexes = LongStream.range( 0, numOutputBlocks ).boxed().collect( Collectors.toList() );
@@ -382,7 +382,7 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String relabeledDatasetPath,
             final String outputDatasetPath,
-            final Optional< Long > minSizeOptional ) throws IOException
+            final OptionalLong minSizeOptional ) throws IOException
     {
         // collect pixels counts for each component
         final DatasetAttributes attributes = n5Supplier.get().getDatasetAttributes( relabeledDatasetPath );
@@ -419,7 +419,7 @@ public class N5ConnectedComponentsSpark
                 );
 
         // filter the components by the specified min size if specified, and return them in sorted order
-        final long minSize = minSizeOptional.isPresent() ? minSizeOptional.get().longValue() : 0;
+        final long minSize = minSizeOptional.orElse( 0 );
         final List< Long > filteredSortedComponentsIds = componentsIdsAndSize.entrySet().stream()
                 .filter( entry -> entry.getValue() >= minSize )
                 .map( Map.Entry::getKey )
@@ -483,8 +483,8 @@ public class N5ConnectedComponentsSpark
                     parsedArgs.inputDatasetPath,
                     parsedArgs.outputDatasetPath,
                     parsedArgs.neighborhoodShapeType,
-                    Optional.ofNullable( parsedArgs.threshold ),
-                    Optional.ofNullable( parsedArgs.minSize ),
+                    parsedArgs.threshold != null ? OptionalDouble.of( parsedArgs.threshold ) : OptionalDouble.empty(),
+                    parsedArgs.minSize != null ? OptionalLong.of( parsedArgs.minSize ) : OptionalLong.empty(),
                     Optional.ofNullable( parsedArgs.blockSize ),
                     Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
             );
