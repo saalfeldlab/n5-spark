@@ -108,7 +108,7 @@ Optional parameters:
 * *block size*: comma-separated list. If omitted, the block size of the input dataset is used.
 * *compression scheme*: if omitted, the compression scheme of the input dataset is used.
 
-When the processing is completed, some statistics about the extracted connected components will be printed, such as the number of components grouped by their size. If running on a Spark cluster, this will be printed in the log file (for Janelia cluster users, the log files are available in `~/.sparklogs/`).
+When the processing is completed, some statistics about the extracted connected components will be stored in the file `stats.txt` in the directory with the output dataset (works only for filesystem-based N5).
 
 
 ### N5 converter
