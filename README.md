@@ -1,5 +1,5 @@
 # N5 Spark [![Build Status](https://travis-ci.org/saalfeldlab/n5-spark.svg?branch=master)](https://travis-ci.org/saalfeldlab/n5-spark)
-A small library for processing [N5](https://github.com/saalfeldlab/n5) datasets on an Apache Spark cluster.
+A collection of utilities for [N5](https://github.com/saalfeldlab/n5) datasets that can run on an Apache Spark cluster.
 
 Supported operations:
 * thresholding and labeling of connected components
@@ -107,6 +107,8 @@ Optional parameters:
 * **Min size**: minimum size of a connected component in pixels. If specified, components that contain fewer number of pixels are discarded from the resulting set. By default all components are kept.
 * *block size*: comma-separated list. If omitted, the block size of the input dataset is used.
 * *compression scheme*: if omitted, the compression scheme of the input dataset is used.
+
+When the processing is completed, some statistics about the extracted connected components will be printed, such as the number of components grouped by their size. If running on a Spark cluster, this will be printed in the log file (for Janelia cluster users, the log files are available in `~/.sparklogs/`).
 
 
 ### N5 converter
