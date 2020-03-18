@@ -468,6 +468,27 @@ public class N5ConnectedComponentsSpark
         } );
 
         newComponentIdsBroadcast.destroy();
+
+        // print component stats
+        System.out.println(System.lineSeparator() + "Total number of connected components: " + newComponentIds.size());
+        if (minSize != 0)
+            System.out.println("(" + componentsIdsAndSize.size() + " components before filtering by min.size=" + minSize + ")");
+
+        final TreeMap<Long, Set<Long>> sizeToComponents = new TreeMap<>();
+        for (final long filteredId : filteredSortedComponentsIds) {
+            final long componentSize = componentsIdsAndSize.get(filteredId);
+            if (!sizeToComponents.containsKey(componentSize))
+                sizeToComponents.put(componentSize, new HashSet<>());
+            sizeToComponents.get(componentSize).add(filteredId);
+        }
+        System.out.println(System.lineSeparator() + "Number of components sorted by their size:");
+        for (final Map.Entry<Long, Set<Long>> entry : sizeToComponents.descendingMap().entrySet())
+            System.out.println("  " + entry.getKey() + " px: " + entry.getValue().size() + " component" + (entry.getValue().size() > 1 ? "s" : ""));
+
+        System.out.println(System.lineSeparator() + "All component IDs and their sizes:");
+        for (final long filteredId : filteredSortedComponentsIds)
+            System.out.println("  ID " + newComponentIds.get(filteredId) + ": " + componentsIdsAndSize.get(filteredId) + " px");
+        System.out.println(System.lineSeparator());
     }
 
     public static void main( final String... args ) throws IOException
