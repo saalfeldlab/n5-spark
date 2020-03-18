@@ -34,7 +34,9 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Serializable;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -88,6 +90,31 @@ public class N5ConnectedComponentsSpark
             final Optional< int[] > blockSizeOptional,
             final Optional< Compression > compressionOptional ) throws IOException
     {
+        connectedComponents(
+                sparkContext,
+                n5Supplier,
+                inputDatasetPath,
+                outputDatasetPath,
+                neighborhoodShapeType,
+                thresholdOptional,
+                minSizeOptional,
+                blockSizeOptional,
+                compressionOptional,
+                Optional.empty() );
+    }
+
+    public static void connectedComponents(
+            final JavaSparkContext sparkContext,
+            final N5WriterSupplier n5Supplier,
+            final String inputDatasetPath,
+            final String outputDatasetPath,
+            final NeighborhoodShapeType neighborhoodShapeType,
+            final OptionalDouble thresholdOptional,
+            final OptionalLong minSizeOptional,
+            final Optional< int[] > blockSizeOptional,
+            final Optional< Compression > compressionOptional,
+            final Optional< String > statsFilePathOptional ) throws IOException
+    {
         final N5Writer n5 = n5Supplier.get();
         if ( n5.datasetExists( outputDatasetPath ) )
             throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
@@ -137,7 +164,8 @@ public class N5ConnectedComponentsSpark
                 n5Supplier,
                 mergedDatasetPath,
                 outputDatasetPath,
-                minSizeOptional );
+                minSizeOptional,
+                statsFilePathOptional );
         N5RemoveSpark.remove( sparkContext, n5Supplier, mergedDatasetPath );
     }
 
@@ -382,7 +410,8 @@ public class N5ConnectedComponentsSpark
             final N5WriterSupplier n5Supplier,
             final String relabeledDatasetPath,
             final String outputDatasetPath,
-            final OptionalLong minSizeOptional ) throws IOException
+            final OptionalLong minSizeOptional,
+            final Optional< String > statsFilePathOptional ) throws IOException
     {
         // collect pixels counts for each component
         final DatasetAttributes attributes = n5Supplier.get().getDatasetAttributes( relabeledDatasetPath );
@@ -470,25 +499,30 @@ public class N5ConnectedComponentsSpark
         newComponentIdsBroadcast.destroy();
 
         // print component stats
-        System.out.println(System.lineSeparator() + "Total number of connected components: " + newComponentIds.size());
-        if (minSize != 0)
-            System.out.println("(" + componentsIdsAndSize.size() + " components before filtering by min.size=" + minSize + ")");
+        if ( statsFilePathOptional.isPresent() )
+        {
+            try ( final PrintWriter statsFileWriter = new PrintWriter( statsFilePathOptional.get() ) )
+            {
+                statsFileWriter.println("Total number of connected components: " + newComponentIds.size());
+                if (minSize != 0)
+                    statsFileWriter.println("(" + componentsIdsAndSize.size() + " components before filtering by min.size=" + minSize + ")");
 
-        final TreeMap<Long, Set<Long>> sizeToComponents = new TreeMap<>();
-        for (final long filteredId : filteredSortedComponentsIds) {
-            final long componentSize = componentsIdsAndSize.get(filteredId);
-            if (!sizeToComponents.containsKey(componentSize))
-                sizeToComponents.put(componentSize, new HashSet<>());
-            sizeToComponents.get(componentSize).add(filteredId);
+                final TreeMap<Long, Set<Long>> sizeToComponents = new TreeMap<>();
+                for (final long filteredId : filteredSortedComponentsIds) {
+                    final long componentSize = componentsIdsAndSize.get(filteredId);
+                    if (!sizeToComponents.containsKey(componentSize))
+                        sizeToComponents.put(componentSize, new HashSet<>());
+                    sizeToComponents.get(componentSize).add(filteredId);
+                }
+                statsFileWriter.println(System.lineSeparator() + "Number of components sorted by their size:");
+                for (final Map.Entry<Long, Set<Long>> entry : sizeToComponents.descendingMap().entrySet())
+                    statsFileWriter.println("  " + entry.getKey() + " px: " + entry.getValue().size() + " component" + (entry.getValue().size() > 1 ? "s" : ""));
+
+                statsFileWriter.println(System.lineSeparator() + "All component IDs and their sizes:");
+                for (final long filteredId : filteredSortedComponentsIds)
+                    statsFileWriter.println("  ID " + newComponentIds.get(filteredId) + ": " + componentsIdsAndSize.get(filteredId) + " px");
+            }
         }
-        System.out.println(System.lineSeparator() + "Number of components sorted by their size:");
-        for (final Map.Entry<Long, Set<Long>> entry : sizeToComponents.descendingMap().entrySet())
-            System.out.println("  " + entry.getKey() + " px: " + entry.getValue().size() + " component" + (entry.getValue().size() > 1 ? "s" : ""));
-
-        System.out.println(System.lineSeparator() + "All component IDs and their sizes:");
-        for (final long filteredId : filteredSortedComponentsIds)
-            System.out.println("  ID " + newComponentIds.get(filteredId) + ": " + componentsIdsAndSize.get(filteredId) + " px");
-        System.out.println(System.lineSeparator());
     }
 
     public static void main( final String... args ) throws IOException
@@ -507,7 +541,8 @@ public class N5ConnectedComponentsSpark
                     parsedArgs.threshold != null ? OptionalDouble.of( parsedArgs.threshold ) : OptionalDouble.empty(),
                     parsedArgs.minSize != null ? OptionalLong.of( parsedArgs.minSize ) : OptionalLong.empty(),
                     Optional.ofNullable( parsedArgs.blockSize ),
-                    Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null )
+                    Optional.ofNullable( parsedArgs.n5Compression != null ? parsedArgs.n5Compression.get() : null ),
+                    Optional.of( Paths.get( parsedArgs.n5Path, parsedArgs.outputDatasetPath, "stats.txt" ).toString() )
             );
         }
 
