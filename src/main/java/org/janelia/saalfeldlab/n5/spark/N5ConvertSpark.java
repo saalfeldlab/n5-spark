@@ -185,8 +185,7 @@ public class N5ConvertSpark
 					n5OutputSupplier,
 					outputDatasetPath,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue,
-					overwriteExisting
+					minOutputValue, maxOutputValue
 				);
 		}
 		else
@@ -199,8 +198,7 @@ public class N5ConvertSpark
 					n5OutputSupplier,
 					outputDatasetPath,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue,
-					overwriteExisting
+					minOutputValue, maxOutputValue
 				);
 		}
 	}
@@ -213,8 +211,7 @@ public class N5ConvertSpark
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue,
-			final boolean overwriteExisting ) throws IOException
+			final double minOutputValue, final double maxOutputValue ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
@@ -257,21 +254,16 @@ public class N5ConvertSpark
 			}
 			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
 
-			if ( overwriteExisting )
-				N5Utils.saveBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition
-				);
-			else
-				N5Utils.saveNonEmptyBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition,
-					outputType.createVariable()
-				);
+			// Empty blocks will not be written out.
+			// Delete blocks to avoid remnant blocks if overwriting.
+			deleteBlock(convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath, outputBlockSize, outputBlockGridPosition);
+			N5Utils.saveNonEmptyBlock(
+				convertedSourceInterval,
+				n5OutputSupplier.get(),
+				outputDatasetPath,
+				outputBlockGridPosition,
+				outputType.createVariable()
+			);
 		} );
 	}
 
@@ -283,8 +275,7 @@ public class N5ConvertSpark
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue,
-			final boolean overwriteExisting ) throws IOException
+			final double minOutputValue, final double maxOutputValue ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
@@ -338,21 +329,17 @@ public class N5ConvertSpark
 			final long[] outputBlockGridPosition = new long[ outputBlockGrid.numDimensions() ];
 			outputBlockGrid.getCellPosition( adjustedBlockMin, outputBlockGridPosition );
 
-			if ( overwriteExisting )
-				N5Utils.saveBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition
-				);
-			else
-				N5Utils.saveNonEmptyBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition,
-					outputType.createVariable()
-				);
+
+			// Empty blocks will not be written out.
+			// Delete blocks to avoid remnant blocks if overwriting.
+			deleteBlock(convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath, outputBlockSize, outputBlockGridPosition);
+			N5Utils.saveNonEmptyBlock(
+				convertedSourceInterval,
+				n5OutputSupplier.get(),
+				outputDatasetPath,
+				outputBlockGridPosition,
+				outputType.createVariable()
+			);
 		} );
 	}
 
@@ -463,5 +450,55 @@ public class N5ConvertSpark
 		public Compression getCompression() { return n5Compression != null ? n5Compression.get() : null; }
 		public DataType getDataType() { return dataType; }
 		public Pair< Double, Double > getValueRange() { return Objects.nonNull( minValue ) && Objects.nonNull( maxValue ) ? new ValuePair<>( minValue, maxValue ) : null; }
+	}
+
+	private static void cropBlockDimensions(
+			final long[] max,
+			final long[] offset,
+			final long[] gridOffset,
+			final int[] blockDimensions,
+			final long[] croppedBlockDimensions,
+			final int[] intCroppedBlockDimensions,
+			final long[] gridPosition) {
+
+		for (int d = 0; d < max.length; ++d) {
+			croppedBlockDimensions[d] = Math.min(blockDimensions[d], max[d] - offset[d] + 1);
+			intCroppedBlockDimensions[d] = (int)croppedBlockDimensions[d];
+			gridPosition[d] = offset[d] / blockDimensions[d] + gridOffset[d];
+		}
+	}
+
+	private static final void deleteBlock(
+			final Interval interval,
+			final N5Writer n5,
+			final String dataset,
+			final int[] blockSize,
+			final long[] gridOffset) throws IOException {
+
+		final Interval zeroMinInterval = new FinalInterval(Intervals.dimensionsAsLongArray(interval));
+		final int n = zeroMinInterval.numDimensions();
+		final long[] max = Intervals.maxAsLongArray(zeroMinInterval);
+		final long[] offset = new long[n];
+		final long[] gridPosition = new long[n];
+		final int[] intCroppedBlockSize = new int[n];
+		final long[] longCroppedBlockSize = new long[n];
+		for (int d = 0; d < n;) {
+			cropBlockDimensions(
+					max,
+					offset,
+					gridOffset,
+					blockSize,
+					longCroppedBlockSize,
+					intCroppedBlockSize,
+					gridPosition);
+			n5.deleteBlock(dataset, gridPosition);
+			for (d = 0; d < n; ++d) {
+				offset[d] += blockSize[d];
+				if (offset[d] <= max[d])
+					break;
+				else
+					offset[d] = 0;
+			}
+		}
 	}
 }
