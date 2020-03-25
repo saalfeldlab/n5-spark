@@ -224,6 +224,9 @@ public class N5DownsamplerSpark
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
 
+			// Empty blocks will not be written out.
+			// Delete blocks to avoid remnant blocks if overwriting.
+			deleteBlock(targetBlock, n5Local, outputDatasetPath, outputBlockSize, blockGridPosition);
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
@@ -314,5 +317,55 @@ public class N5DownsamplerSpark
 		public String[] getOutputDatasetPath() { return outputDatasetPath; }
 		public int[][] getDownsamplingFactors() { return CmdUtils.parseMultipleIntArrays( downsamplingFactors ); }
 		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
+	}
+
+	private static void cropBlockDimensions(
+			final long[] max,
+			final long[] offset,
+			final long[] gridOffset,
+			final int[] blockDimensions,
+			final long[] croppedBlockDimensions,
+			final int[] intCroppedBlockDimensions,
+			final long[] gridPosition) {
+
+		for (int d = 0; d < max.length; ++d) {
+			croppedBlockDimensions[d] = Math.min(blockDimensions[d], max[d] - offset[d] + 1);
+			intCroppedBlockDimensions[d] = (int)croppedBlockDimensions[d];
+			gridPosition[d] = offset[d] / blockDimensions[d] + gridOffset[d];
+		}
+	}
+
+	private static final void deleteBlock(
+			final Interval interval,
+			final N5Writer n5,
+			final String dataset,
+			final int[] blockSize,
+			final long[] gridOffset) throws IOException {
+
+		final Interval zeroMinInterval = new FinalInterval(Intervals.dimensionsAsLongArray(interval));
+		final int n = zeroMinInterval.numDimensions();
+		final long[] max = Intervals.maxAsLongArray(zeroMinInterval);
+		final long[] offset = new long[n];
+		final long[] gridPosition = new long[n];
+		final int[] intCroppedBlockSize = new int[n];
+		final long[] longCroppedBlockSize = new long[n];
+		for (int d = 0; d < n;) {
+			cropBlockDimensions(
+					max,
+					offset,
+					gridOffset,
+					blockSize,
+					longCroppedBlockSize,
+					intCroppedBlockSize,
+					gridPosition);
+			n5.deleteBlock(dataset, gridPosition);
+			for (d = 0; d < n; ++d) {
+				offset[d] += blockSize[d];
+				if (offset[d] <= max[d])
+					break;
+				else
+					offset[d] = 0;
+			}
+		}
 	}
 }
