@@ -388,7 +388,7 @@ public class N5NonIsotropicScalePyramidSpark
 	/**
 	 * Returns a new array containing the first 3 entries of the given block sizes.
 	 *
-	 * @param blockSize
+	 * @param blockSizes
 	 * @return XYZ block sizes
 	 */
 	private static int[] getBlockSizes3D( final int[] blockSizes )

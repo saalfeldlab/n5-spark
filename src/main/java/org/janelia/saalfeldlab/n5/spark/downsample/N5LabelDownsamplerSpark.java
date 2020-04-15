@@ -97,6 +97,40 @@ public class N5LabelDownsamplerSpark
 			final int[] downsamplingFactors,
 			final int[] blockSize ) throws IOException
 	{
+		downsampleLabel(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				false
+		);
+	}
+
+	/**
+	 * Downsamples the given input dataset with respect to the given downsampling factors.
+	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
+	 * In case of equal frequencies, the smallest label value among them is used.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & IntegerType< T > > void downsampleLabel(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final boolean overwriteExisting ) throws IOException
+	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
@@ -166,9 +200,12 @@ public class N5LabelDownsamplerSpark
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			downsampleLabel( sourceBlock, targetBlock, downsamplingFactors );
 
-			// Empty blocks will not be written out.
-			// Delete blocks to avoid remnant blocks if overwriting.
-			deleteBlock(targetBlock, n5Local, outputDatasetPath, outputBlockSize, blockGridPosition);
+			if ( overwriteExisting )
+			{
+				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
+				N5Utils.deleteBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
+			}
+
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
@@ -308,55 +345,5 @@ public class N5LabelDownsamplerSpark
 		public String getOutputDatasetPath() { return outputDatasetPath; }
 		public int[] getDownsamplingFactors() { return CmdUtils.parseIntArray( downsamplingFactors ); }
 		public int[] getBlockSize() { return CmdUtils.parseIntArray( blockSize ); }
-	}
-
-	private static void cropBlockDimensions(
-			final long[] max,
-			final long[] offset,
-			final long[] gridOffset,
-			final int[] blockDimensions,
-			final long[] croppedBlockDimensions,
-			final int[] intCroppedBlockDimensions,
-			final long[] gridPosition) {
-
-		for (int d = 0; d < max.length; ++d) {
-			croppedBlockDimensions[d] = Math.min(blockDimensions[d], max[d] - offset[d] + 1);
-			intCroppedBlockDimensions[d] = (int)croppedBlockDimensions[d];
-			gridPosition[d] = offset[d] / blockDimensions[d] + gridOffset[d];
-		}
-	}
-
-	private static final void deleteBlock(
-			final Interval interval,
-			final N5Writer n5,
-			final String dataset,
-			final int[] blockSize,
-			final long[] gridOffset) throws IOException {
-
-		final Interval zeroMinInterval = new FinalInterval(Intervals.dimensionsAsLongArray(interval));
-		final int n = zeroMinInterval.numDimensions();
-		final long[] max = Intervals.maxAsLongArray(zeroMinInterval);
-		final long[] offset = new long[n];
-		final long[] gridPosition = new long[n];
-		final int[] intCroppedBlockSize = new int[n];
-		final long[] longCroppedBlockSize = new long[n];
-		for (int d = 0; d < n;) {
-			cropBlockDimensions(
-					max,
-					offset,
-					gridOffset,
-					blockSize,
-					longCroppedBlockSize,
-					intCroppedBlockSize,
-					gridPosition);
-			n5.deleteBlock(dataset, gridPosition);
-			for (d = 0; d < n; ++d) {
-				offset[d] += blockSize[d];
-				if (offset[d] <= max[d])
-					break;
-				else
-					offset[d] = 0;
-			}
-		}
 	}
 }
