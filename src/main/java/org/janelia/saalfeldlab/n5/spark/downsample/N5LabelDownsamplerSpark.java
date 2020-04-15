@@ -134,8 +134,6 @@ public class N5LabelDownsamplerSpark
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
-		if ( n5.datasetExists( outputDatasetPath ) )
-			throw new IllegalArgumentException( "Output N5 dataset " + outputDatasetPath + " already exists" );
 
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final int dim = inputAttributes.getNumDimensions();
@@ -151,6 +149,22 @@ public class N5LabelDownsamplerSpark
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
 
 		final int[] outputBlockSize = blockSize != null ? blockSize : inputAttributes.getBlockSize();
+
+		if ( n5.datasetExists( outputDatasetPath ) )
+		{
+			if ( !overwriteExisting )
+			{
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+			}
+			else
+			{
+				// Requested to overwrite an existing dataset, make sure that the block sizes match
+				final int[] oldOutputBlockSize = n5.getDatasetAttributes( outputDatasetPath ).getBlockSize();
+				if ( !Arrays.equals( outputBlockSize, oldOutputBlockSize ) )
+					throw new RuntimeException( "Cannot overwrite existing dataset if the block sizes are not the same." );
+			}
+		}
+
 		n5.createDataset(
 				outputDatasetPath,
 				outputDimensions,

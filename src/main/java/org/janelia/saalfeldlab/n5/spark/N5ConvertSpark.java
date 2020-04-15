@@ -126,13 +126,25 @@ public class N5ConvertSpark
 		final Compression inputCompression = inputAttributes.getCompression();
 		final DataType inputDataType = inputAttributes.getDataType();
 
-		final N5Writer n5Output = n5OutputSupplier.get();
-		if ( !overwriteExisting && n5Output.datasetExists( outputDatasetPath ) )
-			throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
-
 		final int[] outputBlockSize = blockSizeOptional.isPresent() ? blockSizeOptional.get() : inputBlockSize;
 		final Compression outputCompression = compressionOptional.isPresent() ? compressionOptional.get() : inputCompression;
 		final DataType outputDataType = dataTypeOptional.isPresent() ? dataTypeOptional.get() : inputDataType;
+
+		final N5Writer n5Output = n5OutputSupplier.get();
+		if ( n5Output.datasetExists( outputDatasetPath ) )
+		{
+			if ( !overwriteExisting )
+			{
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+			}
+			else
+			{
+				// Requested to overwrite an existing dataset, make sure that the block sizes match
+				final int[] oldOutputBlockSize = n5Output.getDatasetAttributes( outputDatasetPath ).getBlockSize();
+				if ( !Arrays.equals( outputBlockSize, oldOutputBlockSize ) )
+					throw new RuntimeException( "Cannot overwrite existing dataset if the block sizes are not the same." );
+			}
+		}
 
 		final long[] dimensions = inputAttributes.getDimensions();
 		n5Output.createDataset( outputDatasetPath, dimensions, outputBlockSize, outputDataType, outputCompression );
