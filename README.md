@@ -1,12 +1,15 @@
 # N5 Spark [![Build Status](https://travis-ci.org/saalfeldlab/n5-spark.svg?branch=master)](https://travis-ci.org/saalfeldlab/n5-spark)
-A small library for processing [N5](https://github.com/saalfeldlab/n5) datasets on an Apache Spark cluster.
+A collection of utilities for [N5](https://github.com/saalfeldlab/n5) datasets that can run on an Apache Spark cluster.
 
 Supported operations:
+* thresholding and labeling of connected components
 * resaving using different blocksize / datatype / compression
 * downsampling (isotropic / non-isotropic)
 * max intensity projection
 * conversion between N5 and slice TIFF series
 * parallel remove
+
+N5 Spark can run on **Amazon Web Services** and **Google Cloud**, more information is available in the [wiki](https://github.com/saalfeldlab/n5-spark/wiki).
 
 ## Usage
 
@@ -21,10 +24,7 @@ If you have already cloned the repository, run this after cloning to fetch the s
 git submodule update --init --recursive
 ```
 
-`n5-spark` for use on local machine is available on conda:
-```
-conda -c hanslovsky install n5-spark
-```
+You can use the library in your Spark-based project or as a standalone tool. To use in your project, add a maven dependency and make sure that your application is set to be compiled as a shaded jar that contains all dependencies.
 
 Alternatively, to use as a standalone tool, compile the package for the desired execution environment:
 
@@ -59,6 +59,56 @@ _JAVA_OPTIONS=-Djdk.net.URLClassPath.disableClassPathURLCheck=true ./build-spark
 The scripts for starting the application are located under `startup-scripts/spark-janelia` and `startup-scripts/spark-local`, and their usage is explained below.
 
 If running locally, you can access the Spark job tracker at http://localhost:4040/ to monitor the progress of the tasks.
+
+
+
+### N5 connected components
+
+<details>
+<summary><b>Run on Janelia cluster</b></summary>
+
+```bash
+spark-janelia/n5-connected-components.py 
+<number of cluster nodes> 
+-n <path to n5 root> 
+-i <input dataset>
+-o <output dataset>
+[-t <min threshold value for input data>]
+[-s <neighborhood shape, can be 'diamond' or 'box'>]
+[-m <min size of accepted connected components in pixels>]
+[-b <output block size>]
+[-c <output compression scheme>]
+```
+</details>
+
+<details>
+<summary><b>Run on local machine</b></summary>
+
+```bash
+spark-local/n5-connected-components.py 
+-n <path to n5 root> 
+-i <input dataset>
+-o <output dataset>
+[-t <min threshold value for input data>]
+[-s <neighborhood shape, can be 'diamond' or 'box'>]
+[-m <min size of accepted connected components in pixels>]
+[-b <output block size>]
+[-c <output compression scheme>]
+```
+</details>
+
+Finds and labels all connected components in a binary mask extracted from the input N5 dataset and saves the relabeled dataset as an `uint64` output dataset.
+
+Optional parameters:
+* **Threshold**: min value in the input data to be included in the binary mask. The condition is `input >= threshold`. If omitted, all input values higher than 0 are included in the binary mask (`input > 0`).
+* **Neighborhood shape**: specifies how pixels are grouped into connected components. There are two options:
+  * Diamond (default): only direct neighbors are considered (4-neighborhood in 2D, 6-neighborhood in 3D).
+  * Box (`-s box`): diagonal pixels are considered as well (8-neighborhood in 2D, 26-neighborhood in 3D). It can be used to decrease the number of trivial components.
+* **Min size**: minimum size of a connected component in pixels. If specified, components that contain fewer number of pixels are discarded from the resulting set. By default all components are kept.
+* *block size*: comma-separated list. If omitted, the block size of the input dataset is used.
+* *compression scheme*: if omitted, the compression scheme of the input dataset is used.
+
+When the processing is completed, some statistics about the extracted connected components will be stored in the file `stats.txt` in the directory with the output dataset (works only for filesystem-based N5).
 
 
 ### N5 converter
@@ -99,8 +149,6 @@ spark-local/n5-convert.py
 [--force to overwrite output dataset if already exists]
 ```
 </details>
-
-<br/>
 
 Resaves an N5 dataset possibly changing all or some of the following dataset attributes:
 * *block size*: if omitted, the block size of the input dataset is used.
@@ -334,6 +382,8 @@ spark-janelia/n5-to-slice-tiff.py
 -o <output path> 
 [-d <slice dimension>]
 [-c <tiff compression>]
+[-f <filename format>]
+[--fill <fill value>]
 ```
 </details>
 
@@ -347,11 +397,21 @@ spark-local/n5-to-slice-tiff.py
 -o <output path> 
 [-d <slice dimension>]
 [-c <tiff compression>]
+[-f <filename format>]
+[--fill <fill value>]
 ```
 </details>
 
 The tool converts a given dataset into slice TIFF series and saves them in the specified output folder.<br/>
 The slice dimension can be specified as `-d x`, `-d y`, or `-d z` (default) to generate YZ, XZ, or XY slices respectively.
+
+The filename format is expected to contain a single placeholder for an integer representing the index of the slice, such as:
+* `-f slice%dz.tif` to produce filenames such as *slice0z.tif*, *slice1z.tif*, *slice2z.tif*, etc.
+* `-f slice%03dz.tif` to produce filenames such as *slice000z.tif*, *slice001z.tif*, *slice002z.tif*, etc.
+
+The default pattern is `%d.tif` so the resulting filenames by default are simply *0.tif*, *1.tif*, *2.tif*, etc.
+
+If the input dataset is sparse and some of the N5 blocks do not exist, this empty space will be filled in the TIFF images with 0 by default. The `--fill` parameter allows to change this fill value.
 
 Output TIFF images are written as uncompressed by default. LZW compression can be enabled by supplying `-c lzw`.<br/>
 **WARNING:** LZW compressor can be very slow. It is not recommended for general use unless saving disk space is crucial.
@@ -417,8 +477,3 @@ spark-local/n5-remove.py
 </details>
 
 The tool removes a group or dataset parallelizing over inner groups. This is typically much faster than deleting the group on a single machine, in particular when removing groups with many nested groups and/or n5 blocks.
-
-
--------------------------------------------------------------
-
-You can alternatively use the library in your Spark-based project. Add a maven dependency and make sure that your application is set to be compiled as a fat jar.
