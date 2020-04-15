@@ -12,6 +12,7 @@ import java.util.stream.LongStream;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.janelia.saalfeldlab.n5.DataBlock;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
@@ -96,11 +97,43 @@ public class N5LabelDownsamplerSpark
 			final int[] downsamplingFactors,
 			final int[] blockSize ) throws IOException
 	{
+		downsampleLabel(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				false
+		);
+	}
+
+	/**
+	 * Downsamples the given input dataset with respect to the given downsampling factors.
+	 * Instead of averaging, it uses the value that is the most frequent in the neighborhood.
+	 * In case of equal frequencies, the smallest label value among them is used.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & IntegerType< T > > void downsampleLabel(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final boolean overwriteExisting ) throws IOException
+	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
-		if ( n5.datasetExists( outputDatasetPath ) )
-			throw new IllegalArgumentException( "Output N5 dataset " + outputDatasetPath + " already exists" );
 
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final int dim = inputAttributes.getNumDimensions();
@@ -116,6 +149,22 @@ public class N5LabelDownsamplerSpark
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
 
 		final int[] outputBlockSize = blockSize != null ? blockSize : inputAttributes.getBlockSize();
+
+		if ( n5.datasetExists( outputDatasetPath ) )
+		{
+			if ( !overwriteExisting )
+			{
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+			}
+			else
+			{
+				// Requested to overwrite an existing dataset, make sure that the block sizes match
+				final int[] oldOutputBlockSize = n5.getDatasetAttributes( outputDatasetPath ).getBlockSize();
+				if ( !Arrays.equals( outputBlockSize, oldOutputBlockSize ) )
+					throw new RuntimeException( "Cannot overwrite existing dataset if the block sizes are not the same." );
+			}
+		}
+
 		n5.createDataset(
 				outputDatasetPath,
 				outputDimensions,
@@ -164,6 +213,12 @@ public class N5LabelDownsamplerSpark
 			/* do if not empty */
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			downsampleLabel( sourceBlock, targetBlock, downsamplingFactors );
+
+			if ( overwriteExisting )
+			{
+				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
+				N5Utils.deleteBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
+			}
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );

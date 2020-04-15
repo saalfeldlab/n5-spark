@@ -62,8 +62,37 @@ public class N5DownsamplerSpark
 				inputDatasetPath,
 				outputDatasetPath,
 				downsamplingFactors,
-				null
-			);
+				false );
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * The output dataset will be created within the same N5 container with the same block size as the input dataset.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final boolean overwriteExisting ) throws IOException
+	{
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				null,
+				overwriteExisting );
 	}
 
 	/**
@@ -86,11 +115,41 @@ public class N5DownsamplerSpark
 			final int[] downsamplingFactors,
 			final int[] blockSize ) throws IOException
 	{
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				false );
+	}
+
+	/**
+	 * Downsamples the given input dataset of an N5 container with respect to the given downsampling factors.
+	 * The output dataset will be created within the same N5 container with given block size.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static < T extends NativeType< T > & RealType< T > > void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final boolean overwriteExisting ) throws IOException
+	{
 		final N5Writer n5 = n5Supplier.get();
 		if ( !n5.datasetExists( inputDatasetPath ) )
 			throw new IllegalArgumentException( "Input N5 dataset " + inputDatasetPath + " does not exist" );
-		if ( n5.datasetExists( outputDatasetPath ) )
-			throw new IllegalArgumentException( "Output N5 dataset " + outputDatasetPath + " already exists" );
 
 		final DatasetAttributes inputAttributes = n5.getDatasetAttributes( inputDatasetPath );
 		final int dim = inputAttributes.getNumDimensions();
@@ -106,6 +165,22 @@ public class N5DownsamplerSpark
 			throw new IllegalArgumentException( "Degenerate output dimensions: " + Arrays.toString( outputDimensions ) );
 
 		final int[] outputBlockSize = blockSize != null ? blockSize : inputAttributes.getBlockSize();
+
+		if ( n5.datasetExists( outputDatasetPath ) )
+		{
+			if ( !overwriteExisting )
+			{
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+			}
+			else
+			{
+				// Requested to overwrite an existing dataset, make sure that the block sizes match
+				final int[] oldOutputBlockSize = n5.getDatasetAttributes( outputDatasetPath ).getBlockSize();
+				if ( !Arrays.equals( outputBlockSize, oldOutputBlockSize ) )
+					throw new RuntimeException( "Cannot overwrite existing dataset if the block sizes are not the same." );
+			}
+		}
+
 		n5.createDataset(
 				outputDatasetPath,
 				outputDimensions,
@@ -162,6 +237,12 @@ public class N5DownsamplerSpark
 			/* do if not empty */
 			final RandomAccessibleInterval< T > targetBlock = new ArrayImgFactory<>( defaultValue ).create( targetInterval );
 			Downsample.downsample( sourceBlock, targetBlock, downsamplingFactors );
+
+			if ( overwriteExisting)
+			{
+				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
+				N5Utils.deleteBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition );
+			}
 
 			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
 		} );

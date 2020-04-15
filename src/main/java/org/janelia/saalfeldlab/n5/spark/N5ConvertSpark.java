@@ -126,13 +126,25 @@ public class N5ConvertSpark
 		final Compression inputCompression = inputAttributes.getCompression();
 		final DataType inputDataType = inputAttributes.getDataType();
 
-		final N5Writer n5Output = n5OutputSupplier.get();
-		if ( !overwriteExisting && n5Output.datasetExists( outputDatasetPath ) )
-			throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
-
 		final int[] outputBlockSize = blockSizeOptional.isPresent() ? blockSizeOptional.get() : inputBlockSize;
 		final Compression outputCompression = compressionOptional.isPresent() ? compressionOptional.get() : inputCompression;
 		final DataType outputDataType = dataTypeOptional.isPresent() ? dataTypeOptional.get() : inputDataType;
+
+		final N5Writer n5Output = n5OutputSupplier.get();
+		if ( n5Output.datasetExists( outputDatasetPath ) )
+		{
+			if ( !overwriteExisting )
+			{
+				throw new RuntimeException( "Output dataset already exists: " + outputDatasetPath );
+			}
+			else
+			{
+				// Requested to overwrite an existing dataset, make sure that the block sizes match
+				final int[] oldOutputBlockSize = n5Output.getDatasetAttributes( outputDatasetPath ).getBlockSize();
+				if ( !Arrays.equals( outputBlockSize, oldOutputBlockSize ) )
+					throw new RuntimeException( "Cannot overwrite existing dataset if the block sizes are not the same." );
+			}
+		}
 
 		final long[] dimensions = inputAttributes.getDimensions();
 		n5Output.createDataset( outputDatasetPath, dimensions, outputBlockSize, outputDataType, outputCompression );
@@ -184,9 +196,9 @@ public class N5ConvertSpark
 					inputDatasetPath,
 					n5OutputSupplier,
 					outputDatasetPath,
+					overwriteExisting,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue,
-					overwriteExisting
+					minOutputValue, maxOutputValue
 				);
 		}
 		else
@@ -198,9 +210,9 @@ public class N5ConvertSpark
 					inputDatasetPath,
 					n5OutputSupplier,
 					outputDatasetPath,
+					overwriteExisting,
 					minInputValue, maxInputValue,
-					minOutputValue, maxOutputValue,
-					overwriteExisting
+					minOutputValue, maxOutputValue
 				);
 		}
 	}
@@ -212,9 +224,9 @@ public class N5ConvertSpark
 			final String inputDatasetPath,
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
+			final boolean overwriteExisting,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue,
-			final boolean overwriteExisting ) throws IOException
+			final double minOutputValue, final double maxOutputValue ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
@@ -250,28 +262,25 @@ public class N5ConvertSpark
 			}
 			else
 			{
-				convertedSource = Converters.convert( source, new ClampingConverter< I, O >(
+				convertedSource = Converters.convert( source, new ClampingConverter<>(
 						minInputValue, maxInputValue,
 						minOutputValue, maxOutputValue
 					), outputType.createVariable() );
 			}
-			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, outputBlockInterval );
+			final RandomAccessibleInterval< O > convertedSourceInterval = Views.interval( convertedSource, outputBlockInterval );
 
 			if ( overwriteExisting )
-				N5Utils.saveBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition
-				);
-			else
-				N5Utils.saveNonEmptyBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition,
-					outputType.createVariable()
-				);
+			{
+				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
+				N5Utils.deleteBlock( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
+			}
+
+			N5Utils.saveNonEmptyBlock(
+				convertedSourceInterval,
+				n5OutputSupplier.get(),
+				outputDatasetPath,
+				outputType.createVariable()
+			);
 		} );
 	}
 
@@ -282,9 +291,9 @@ public class N5ConvertSpark
 			final String inputDatasetPath,
 			final N5WriterSupplier n5OutputSupplier,
 			final String outputDatasetPath,
+			final boolean overwriteExisting,
 			final double minInputValue, final double maxInputValue,
-			final double minOutputValue, final double maxOutputValue,
-			final boolean overwriteExisting ) throws IOException
+			final double minOutputValue, final double maxOutputValue ) throws IOException
 	{
 		final DatasetAttributes inputAttributes = n5InputSupplier.get().getDatasetAttributes( inputDatasetPath );
 		final long[] dimensions = inputAttributes.getDimensions();
@@ -326,33 +335,25 @@ public class N5ConvertSpark
 			}
 			else
 			{
-				convertedSource = Converters.convert( source, new ClampingConverter< I, O >(
+				convertedSource = Converters.convert( source, new ClampingConverter<>(
 						minInputValue, maxInputValue,
 						minOutputValue, maxOutputValue
 					), outputType.createVariable() );
 			}
-			final RandomAccessibleInterval< O > convertedSourceInterval = Views.offsetInterval( convertedSource, adjustedBlockInterval );
-
-			// compute correct output block grid offset
-			final CellGrid outputBlockGrid = new CellGrid( dimensions, outputBlockSize );
-			final long[] outputBlockGridPosition = new long[ outputBlockGrid.numDimensions() ];
-			outputBlockGrid.getCellPosition( adjustedBlockMin, outputBlockGridPosition );
+			final RandomAccessibleInterval< O > convertedSourceInterval = Views.interval( convertedSource, adjustedBlockInterval );
 
 			if ( overwriteExisting )
-				N5Utils.saveBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition
-				);
-			else
-				N5Utils.saveNonEmptyBlock(
-					convertedSourceInterval,
-					n5OutputSupplier.get(),
-					outputDatasetPath,
-					outputBlockGridPosition,
-					outputType.createVariable()
-				);
+			{
+				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
+				N5Utils.deleteBlock( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
+			}
+
+			N5Utils.saveNonEmptyBlock(
+				convertedSourceInterval,
+				n5OutputSupplier.get(),
+				outputDatasetPath,
+				outputType.createVariable()
+			);
 		} );
 	}
 
