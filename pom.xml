@@ -11,7 +11,7 @@
 
 	<groupId>org.janelia.saalfeldlab</groupId>
 	<artifactId>n5-spark</artifactId>
-	<version>3.6.0</version>
+	<version>3.6.1-SNAPSHOT</version>
 	<name>N5 Spark</name>
 	<description>N5 Spark-based processing tools</description>
 
