@@ -62,8 +62,7 @@ public class SliceTiffToN5Spark
 	 * 			Output N5 compression
 	 * @throws IOException
 	 */
-	@SuppressWarnings( "unchecked" )
-	public static < T extends NativeType< T > > void convert(
+	public static void convert(
 			final JavaSparkContext sparkContext,
 			final String inputDirPath,
 			final N5WriterSupplier outputN5Supplier,
@@ -71,8 +70,50 @@ public class SliceTiffToN5Spark
 			final int[] blockSize,
 			final Compression compression ) throws IOException
 	{
+		convert(
+				sparkContext,
+				inputDirPath,
+				new TiffUtils.FileTiffReader(),
+				outputN5Supplier,
+				outputDataset,
+				blockSize,
+				compression );
+	}
+
+	/**
+	 * Converts slice TIFF series into an N5 dataset.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param inputDirPath
+	 * 			Path to the input directory containing TIFF slices
+	 * @param outputN5Supplier
+	 * 			{@link N5Writer} supplier
+	 * @param outputDataset
+	 * 			Output N5 dataset
+	 * @param blockSize
+	 * 			Output N5 block size
+	 * @param compression
+	 * 			Output N5 compression
+	 * @throws IOException
+	 */
+	@SuppressWarnings( "unchecked" )
+	public static < T extends NativeType< T > > void convert(
+			final JavaSparkContext sparkContext,
+			final String inputDirPath,
+			final TiffUtils.TiffReader tiffReader,
+			final N5WriterSupplier outputN5Supplier,
+			final String outputDataset,
+			final int[] blockSize,
+			final Compression compression ) throws IOException
+	{
 		if ( blockSize.length != 3 )
 			throw new IllegalArgumentException( "Expected 3D block size." );
+
+		// TODO: Support cloud backends as well. Some of the useful functionality is already implemented in
+		//  DataProvider class hierarchy in stitching-spark. Consider moving it n5-spark.
+		if ( !( tiffReader instanceof TiffUtils.FileTiffReader ) )
+			throw new UnsupportedOperationException( "Backends other than the filesystem are not supported yet" );
 
 		// list tiff slice files in natural order
 		final List< String > tiffSliceFilepaths = Files.walk( Paths.get( inputDirPath ) )
@@ -88,7 +129,7 @@ public class SliceTiffToN5Spark
 		final long[] dimensions;
 		final DataType dataType;
 		{
-			final ImagePlus imp = TiffUtils.openTiff( tiffSliceFilepaths.iterator().next() );
+			final ImagePlus imp = tiffReader.openTiff( tiffSliceFilepaths.iterator().next() );
 			final RandomAccessibleInterval< T > img = ( RandomAccessibleInterval< T > ) ImagePlusImgs.from( imp );
 			if ( img.numDimensions() != 2 )
 				throw new RuntimeException( "TIFF images in the specified directory are not 2D" );
@@ -115,7 +156,7 @@ public class SliceTiffToN5Spark
 		final List< Integer > sliceIndices = IntStream.range( 0, tiffSliceFilepaths.size() ).boxed().collect( Collectors.toList() );
 		sparkContext.parallelize( sliceIndices, Math.min( sliceIndices.size(), MAX_PARTITIONS ) ).foreach( sliceIndex ->
 			{
-				final ImagePlus imp = TiffUtils.openTiff( tiffSliceFilepaths.get( sliceIndex ) );
+				final ImagePlus imp = tiffReader.openTiff( tiffSliceFilepaths.get( sliceIndex ) );
 				final RandomAccessibleInterval< T > img = ( RandomAccessibleInterval< T > ) ImagePlusImgs.from( imp );
 				N5Utils.saveNonEmptyBlock(
 						Views.addDimension( img, 0, 0 ),
