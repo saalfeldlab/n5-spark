@@ -1,14 +1,21 @@
 package org.janelia.saalfeldlab.n5.spark;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
+import com.esotericsoftware.kryo.Kryo;
+import ij.ImagePlus;
+import net.imglib2.Cursor;
+import net.imglib2.FinalInterval;
+import net.imglib2.Interval;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.cache.img.CachedCellImg;
+import net.imglib2.img.cell.Cell;
+import net.imglib2.img.cell.CellGrid;
+import net.imglib2.img.cell.LazyCellImg.LazyCells;
+import net.imglib2.img.imageplus.ImagePlusImg;
+import net.imglib2.img.imageplus.ImagePlusImgFactory;
+import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Util;
+import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
@@ -23,22 +30,12 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import com.esotericsoftware.kryo.Kryo;
-
-import ij.ImagePlus;
-import net.imglib2.Cursor;
-import net.imglib2.FinalInterval;
-import net.imglib2.Interval;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.cache.img.CachedCellImg;
-import net.imglib2.img.cell.Cell;
-import net.imglib2.img.cell.CellGrid;
-import net.imglib2.img.cell.LazyCellImg.LazyCells;
-import net.imglib2.img.imageplus.ImagePlusImg;
-import net.imglib2.img.imageplus.ImagePlusImgFactory;
-import net.imglib2.type.NativeType;
-import net.imglib2.util.Util;
-import net.imglib2.view.Views;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 public class N5ToSliceTiffSpark
 {
@@ -62,7 +59,7 @@ public class N5ToSliceTiffSpark
 	 * 			Dimension to slice over
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void convert(
+	public static void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -100,7 +97,7 @@ public class N5ToSliceTiffSpark
 	 * 			Filename format specified using Java string formatter syntax
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void convert(
+	public static void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -142,11 +139,57 @@ public class N5ToSliceTiffSpark
 	 * 			Intensity value for filling extra space
 	 * @throws IOException
 	 */
+	public static void convert(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5Supplier,
+			final String datasetPath,
+			final String outputPath,
+			final TiffCompression compression,
+			final SliceDimension sliceDimension,
+			final String filenameFormat,
+			final Optional< Number > fillValueOptional ) throws IOException
+	{
+		convert(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				outputPath,
+				new TiffUtils.FileTiffWriter(),
+				compression,
+				sliceDimension,
+				filenameFormat,
+				fillValueOptional );
+	}
+
+	/**
+	 * Converts a given dataset into slice TIFF series.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting TIFF series
+	 * @param tiffWriter
+	 * 			{@link TiffUtils.TiffWriter}
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting TIFF series
+	 * @param sliceDimension
+	 * 			Dimension to slice over
+	 * @param filenameFormat
+	 * 			Filename format specified using Java string formatter syntax
+	 * @param fillValueOptional
+	 * 			Intensity value for filling extra space
+	 * @throws IOException
+	 */
 	public static < T extends NativeType< T > & RealType< T > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
 			final String outputPath,
+			final TiffUtils.TiffWriter tiffWriter,
 			final TiffCompression compression,
 			final SliceDimension sliceDimension,
 			final String filenameFormat,
@@ -166,9 +209,9 @@ public class N5ToSliceTiffSpark
 		final long[] sliceDimensions = new long[] { dimensions[ sliceDimensionMap[ 0 ] ], dimensions[ sliceDimensionMap[ 1 ] ] };
 
 		final List< Long > sliceCoords = LongStream.range( 0, dimensions[ sliceDimension.asInteger() ] ).boxed().collect( Collectors.toList() );
-
-		Paths.get( outputPath ).toFile().mkdirs();
 		final Number fillValue = fillValueOptional != null && fillValueOptional.isPresent() ? fillValueOptional.get() : null;
+
+		tiffWriter.createDirs( outputPath );
 
 		sparkContext.parallelize( sliceCoords, Math.min( sliceCoords.size(), MAX_PARTITIONS ) ).foreach( slice ->
 			{
@@ -223,8 +266,8 @@ public class N5ToSliceTiffSpark
 				}
 
 				final ImagePlus sliceImp = target.getImagePlus();
-				final String outputImgPath = Paths.get( outputPath, String.format( filenameFormat, slice ) ).toString();
-				TiffUtils.saveAsTiff( sliceImp, outputImgPath, compression );
+				final String outputImgPath = tiffWriter.combinePaths( outputPath, String.format( filenameFormat, slice ) );
+				tiffWriter.saveTiff( sliceImp, outputImgPath, compression );
 			}
 		);
 	}
