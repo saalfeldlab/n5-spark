@@ -1,31 +1,6 @@
 package org.janelia.saalfeldlab.n5.spark;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
-import org.janelia.saalfeldlab.n5.DatasetAttributes;
-import org.janelia.saalfeldlab.n5.N5FSReader;
-import org.janelia.saalfeldlab.n5.N5Reader;
-import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
-import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
-import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
-import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
-import org.janelia.saalfeldlab.n5.spark.util.TiffUtils.TiffCompression;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.Option;
-
 import com.esotericsoftware.kryo.Kryo;
-
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalDimensions;
@@ -42,7 +17,29 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
+import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.broadcast.Broadcast;
+import org.janelia.saalfeldlab.n5.DatasetAttributes;
+import org.janelia.saalfeldlab.n5.N5FSReader;
+import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
+import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
+import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils;
+import org.janelia.saalfeldlab.n5.spark.util.TiffUtils.TiffCompression;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 import scala.Tuple2;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 public class N5MaxIntensityProjectionSpark
 {
@@ -108,7 +105,7 @@ public class N5MaxIntensityProjectionSpark
 	 * 			TIFF compression to be used for the resulting MIPs
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
+	public static void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -143,12 +140,51 @@ public class N5MaxIntensityProjectionSpark
 	 * 			TIFF compression to be used for the resulting MIPs
 	 * @throws IOException
 	 */
+	public static void createMaxIntensityProjection(
+			final JavaSparkContext sparkContext,
+			final N5ReaderSupplier n5Supplier,
+			final String datasetPath,
+			final int[] cellsInSingleMIP,
+			final String outputPath,
+			final TiffCompression compression ) throws IOException
+	{
+		createMaxIntensityProjection(
+				sparkContext,
+				n5Supplier,
+				datasetPath,
+				cellsInSingleMIP,
+				outputPath,
+				new TiffUtils.FileTiffWriter(),
+				compression );
+	}
+
+	/**
+	 * Generates max intensity projection of the given dataset in X/Y/Z directions using the specified MIP step.
+	 * Saves the resulting MIPs as TIFF images in the specified output folder.
+	 *
+	 * @param sparkContext
+	 * 			Spark context instantiated with {@link Kryo} serializer
+	 * @param n5Supplier
+	 * 			{@link N5Reader} supplier
+	 * @param datasetPath
+	 * 			Path to the input dataset
+	 * @param cellsInSingleMIP
+	 * 			MIP step in X/Y/Z directions specified as the number of N5 blocks included in a single MIP
+	 * @param outputPath
+	 * 			Path to the output folder for saving resulting MIPs
+	 * @param tiffWriter
+	 * 			{@link TiffUtils.TiffWriter}
+	 * @param compression
+	 * 			TIFF compression to be used for the resulting MIPs
+	 * @throws IOException
+	 */
 	public static < T extends NativeType< T > & RealType< T > > void createMaxIntensityProjection(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
 			final int[] cellsInSingleMIP,
 			final String outputPath,
+			final TiffUtils.TiffWriter tiffWriter,
 			final TiffCompression compression ) throws IOException
 	{
 		final N5Reader n5 = n5Supplier.get();
@@ -169,8 +205,12 @@ public class N5MaxIntensityProjectionSpark
 			type = Util.getTypeFromInterval( cellImg ).createVariable();
 		}
 
+		final String[] axisOutputDirs = new String[ dim ];
 		for ( int d = 0; d < dim; ++d )
-			Paths.get( outputPath, AXES[ d ] ).toFile().mkdirs();
+		{
+			axisOutputDirs[ d ] = tiffWriter.combinePaths( outputPath, AXES[ d ] );
+			tiffWriter.createDirs( axisOutputDirs[ d ] );
+		}
 
 		final Broadcast< T > typeBroadcast = sparkContext.broadcast( type );
 
@@ -277,8 +317,8 @@ public class N5MaxIntensityProjectionSpark
 						}
 
 						final ImagePlus mipImp = mip.getImagePlus();
-						final String outputMipPath = Paths.get( outputPath, AXES[ mipDimension ], mipCoordinate + ".tif" ).toString();
-						TiffUtils.saveAsTiff( mipImp, outputMipPath, compression );
+						final String outputMipPath = tiffWriter.combinePaths( axisOutputDirs[ mipDimension ], mipCoordinate + ".tif" );
+						tiffWriter.saveTiff( mipImp, outputMipPath, compression );
 					}
 				);
 
