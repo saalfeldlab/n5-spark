@@ -86,13 +86,6 @@
 		<system>Travis CI</system>
 		<url>https://travis-ci.org/saalfeldlab/n5-spark</url>
 	</ciManagement>
-	<distributionManagement>
-		<repository>
-			<id>local-maven-repo</id>
-			<name>Local Maven Repository</name>
-			<url>file://${deploy.path}</url>
-		</repository>
-	</distributionManagement>
 
 	<properties>
 		<allowedDuplicateClasses>*</allowedDuplicateClasses>
@@ -102,6 +95,9 @@
 		<license.projectName>N5 Spark</license.projectName>
 		<license.organizationName>Saalfeld Lab</license.organizationName>
 		<license.copyrightOwners>Igor Pisarev, Stephan Saalfeld</license.copyrightOwners>
+
+		<!-- NB: Deploy releases to the SciJava Maven repository. -->
+		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 	</properties>
 
 	<dependencies>
@@ -164,12 +160,8 @@
 
 	<repositories>
 		<repository>
-			<id>imagej.public</id>
-			<url>https://maven.imagej.net/content/groups/public</url>
-		</repository>
-		<repository>
-			<id>saalfeld-lab-maven-repo</id>
-			<url>https://saalfeldlab.github.io/maven</url>
+			<id>scijava.public</id>
+			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
 	</repositories>
 
@@ -189,13 +181,6 @@
 					<artifactId>maven-surefire-plugin</artifactId>
 					<configuration>
 						<runOrder>alphabetical</runOrder>
-					</configuration>
-				</plugin>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-deploy-plugin</artifactId>
-					<configuration>
-						<altDeploymentRepository>internal.repo::default::file://${deploy.path}</altDeploymentRepository>
 					</configuration>
 				</plugin>
 			</plugins>
