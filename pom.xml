@@ -90,7 +90,7 @@
 	<properties>
 		<allowedDuplicateClasses>*</allowedDuplicateClasses>
 
-		<package-name>org.janelia.saalfeldlab</package-name>
+		<package-name>org.janelia.saalfeldlab.n5.spark</package-name>
 		<license.licenseName>bsd_2</license.licenseName>
 		<license.projectName>N5 Spark</license.projectName>
 		<license.organizationName>Saalfeld Lab</license.organizationName>
