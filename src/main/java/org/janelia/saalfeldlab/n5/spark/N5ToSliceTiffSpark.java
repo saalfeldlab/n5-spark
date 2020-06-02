@@ -283,6 +283,7 @@ public class N5ToSliceTiffSpark
 	 * - GRAY32 (float)
 	 *
 	 * If the input image is of different type, it needs to be mapped to one of the ImagePlus-supported types.
+	 * Make sure that all values in the given dataset can be represented as ImagePlus type.
 	 *
 	 * @param sourceType
 	 * @param <T>
