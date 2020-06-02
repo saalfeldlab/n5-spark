@@ -14,6 +14,9 @@ import net.imglib2.img.imageplus.ImagePlusImg;
 import net.imglib2.img.imageplus.ImagePlusImgFactory;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.*;
+import net.imglib2.type.numeric.real.DoubleType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
@@ -184,7 +187,7 @@ public class N5ToSliceTiffSpark
 	 * 			Intensity value for filling extra space
 	 * @throws IOException
 	 */
-	public static < T extends NativeType< T > & RealType< T > > void convert(
+	public static < T extends NativeType< T > & RealType< T >, U extends NativeType< U > & RealType< U > > void convert(
 			final JavaSparkContext sparkContext,
 			final N5ReaderSupplier n5Supplier,
 			final String datasetPath,
@@ -222,12 +225,13 @@ public class N5ToSliceTiffSpark
 				slicePos[ sliceDimension.asInteger() ] = slice;
 				cellGrid.getCellPosition( slicePos, cellPos );
 
-				final ImagePlusImg< T, ? > target = new ImagePlusImgFactory<>( Util.getTypeFromInterval( cellImg ) ).create( sliceDimensions );
+				final U mappedType = getMappedImagePlusType( Util.getTypeFromInterval( cellImg ) );
+				final ImagePlusImg< U, ? > target = new ImagePlusImgFactory<>( mappedType ).create( sliceDimensions );
 
 				if ( fillValue != null )
 				{
 					final double fillValueDouble = fillValue.doubleValue();
-					for ( final T val : target )
+					for ( final U val : target )
 						val.setReal( fillValueDouble );
 				}
 
@@ -260,9 +264,9 @@ public class N5ToSliceTiffSpark
 						);
 
 					final Cursor< T > sourceCursor = Views.flatIterable( Views.interval( cellImg, sourceInterval ) ).cursor();
-					final Cursor< T > targetCursor = Views.flatIterable( Views.interval( target, targetInterval ) ).cursor();
+					final Cursor< U > targetCursor = Views.flatIterable( Views.interval( target, targetInterval ) ).cursor();
 					while ( sourceCursor.hasNext() || targetCursor.hasNext() )
-						targetCursor.next().set( sourceCursor.next() );
+						targetCursor.next().setReal( sourceCursor.next().getRealDouble() );
 				}
 
 				final ImagePlus sliceImp = target.getImagePlus();
@@ -272,6 +276,32 @@ public class N5ToSliceTiffSpark
 		);
 	}
 
+	/**
+	 * ImagePlus supports only three types:
+	 * - GRAY8 (unsigned byte)
+	 * - GRAY16 (unsigned short)
+	 * - GRAY32 (float)
+	 *
+	 * If the input image is of different type, it needs to be mapped to one of the ImagePlus-supported types.
+	 *
+	 * @param sourceType
+	 * @param <T>
+	 * @param <U>
+	 * @return
+	 */
+	private static < T extends NativeType< T > & RealType< T >, U extends NativeType< U > & RealType< U > > U getMappedImagePlusType( final T sourceType )
+	{
+		if ( sourceType instanceof DoubleType )
+		{
+			return ( U ) new FloatType();
+		}
+		else if ( sourceType instanceof IntType || sourceType instanceof UnsignedIntType || sourceType instanceof LongType || sourceType instanceof UnsignedLongType )
+		{
+			return ( U ) new UnsignedShortType();
+		}
+
+		return ( U ) sourceType.createVariable();
+	}
 
 	public static void main( final String... args ) throws IOException
 	{
