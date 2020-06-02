@@ -224,6 +224,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-shade-plugin</artifactId>
+						<version>3.2.3</version>
 						<configuration>
 							<!-- Do not minimize for now to speed up packaging. -->
 							<!--<minimizeJar>true</minimizeJar> -->
