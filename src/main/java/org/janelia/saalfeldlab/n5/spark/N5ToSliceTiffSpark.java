@@ -17,7 +17,9 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.*;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.util.Pair;
 import net.imglib2.util.Util;
+import net.imglib2.util.ValuePair;
 import net.imglib2.view.Views;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -225,12 +227,21 @@ public class N5ToSliceTiffSpark
 				slicePos[ sliceDimension.asInteger() ] = slice;
 				cellGrid.getCellPosition( slicePos, cellPos );
 
-				final U mappedType = getMappedImagePlusType( Util.getTypeFromInterval( cellImg ) );
-				final ImagePlusImg< U, ? > target = new ImagePlusImgFactory<>( mappedType ).create( sliceDimensions );
+				final Pair< U, long[] > mappedTypeAndRange = getMappedTypeAndRange( Util.getTypeFromInterval( cellImg ) );
+				final ImagePlusImg< U, ? > target = new ImagePlusImgFactory<>( mappedTypeAndRange.getA() ).create( sliceDimensions );
+				final long[] validMinMax = mappedTypeAndRange.getB();
 
 				if ( fillValue != null )
 				{
 					final double fillValueDouble = fillValue.doubleValue();
+
+					if ( validMinMax != null )
+					{
+						final long fillValueLong = Math.round( fillValueDouble );
+						if ( fillValueLong < validMinMax[ 0 ] || fillValueLong > validMinMax[ 1 ] )
+							throw new IllegalArgumentException( "Fill value is outside the allowed range of values that ImagePlus can support" );
+					}
+
 					for ( final U val : target )
 						val.setReal( fillValueDouble );
 				}
@@ -264,6 +275,20 @@ public class N5ToSliceTiffSpark
 						);
 
 					final Cursor< T > sourceCursor = Views.flatIterable( Views.interval( cellImg, sourceInterval ) ).cursor();
+
+					// check the value range if type conversion is needed
+					if ( validMinMax != null )
+					{
+						while ( sourceCursor.hasNext() )
+						{
+							final T val = sourceCursor.next();
+							final long valLong = Math.round( val.getRealDouble() );
+							if ( valLong < validMinMax[ 0 ] || valLong > validMinMax[ 1 ] )
+								throw new IllegalArgumentException( "Data value is outside the allowed range of values that ImagePlus can support" );
+						}
+						sourceCursor.reset();
+					}
+
 					final Cursor< U > targetCursor = Views.flatIterable( Views.interval( target, targetInterval ) ).cursor();
 					while ( sourceCursor.hasNext() || targetCursor.hasNext() )
 						targetCursor.next().setReal( sourceCursor.next().getRealDouble() );
@@ -283,23 +308,22 @@ public class N5ToSliceTiffSpark
 	 * - GRAY32 (float)
 	 *
 	 * If the input image is of different type, it needs to be mapped to one of the ImagePlus-supported types.
-	 * Make sure that all values in the given dataset can be represented as ImagePlus type.
 	 *
 	 * @param sourceType
 	 * @param <T>
 	 * @param <U>
 	 * @return
 	 */
-	private static < T extends NativeType< T > & RealType< T >, U extends NativeType< U > & RealType< U > > U getMappedImagePlusType( final T sourceType )
+	private static < T extends NativeType< T > & RealType< T >, U extends NativeType< U > & RealType< U > > Pair< U, long[] > getMappedTypeAndRange( final T sourceType )
 	{
 		if ( sourceType instanceof DoubleType )
-			return ( U ) new FloatType();
+			return new ValuePair<>( ( U ) new FloatType(), null ); // conversion is possible, potentially with loss of precision
 		else if ( sourceType instanceof ByteType )
-			return ( U ) new UnsignedByteType();
+			return new ValuePair<>( ( U ) new UnsignedByteType(), new long[] { 0, 255 } );
 		else if ( sourceType instanceof ShortType || sourceType instanceof IntType || sourceType instanceof UnsignedIntType || sourceType instanceof LongType || sourceType instanceof UnsignedLongType )
-			return ( U ) new UnsignedShortType();
+			return new ValuePair<>( ( U ) new UnsignedShortType(), new long[] { 0, 65535 } );
 
-		return ( U ) sourceType.createVariable();
+		return new ValuePair<>( ( U ) sourceType.createVariable(), null );
 	}
 
 	public static void main( final String... args ) throws IOException
