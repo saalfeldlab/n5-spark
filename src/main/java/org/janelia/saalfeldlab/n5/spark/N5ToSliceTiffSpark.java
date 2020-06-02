@@ -292,13 +292,11 @@ public class N5ToSliceTiffSpark
 	private static < T extends NativeType< T > & RealType< T >, U extends NativeType< U > & RealType< U > > U getMappedImagePlusType( final T sourceType )
 	{
 		if ( sourceType instanceof DoubleType )
-		{
 			return ( U ) new FloatType();
-		}
-		else if ( sourceType instanceof IntType || sourceType instanceof UnsignedIntType || sourceType instanceof LongType || sourceType instanceof UnsignedLongType )
-		{
+		else if ( sourceType instanceof ByteType )
+			return ( U ) new UnsignedByteType();
+		else if ( sourceType instanceof ShortType || sourceType instanceof IntType || sourceType instanceof UnsignedIntType || sourceType instanceof LongType || sourceType instanceof UnsignedLongType )
 			return ( U ) new UnsignedShortType();
-		}
 
 		return ( U ) sourceType.createVariable();
 	}
