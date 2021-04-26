@@ -103,6 +103,7 @@
 		<n5-imglib2.version>4.0.0</n5-imglib2.version>
 		<n5-ij.version>2.0.0</n5-ij.version>
 		<bigdataviewer-core.version>10.2.0</bigdataviewer-core.version>
+		<bigwarp.version>7.0.1</bigwarp.version>
 
 		<alphanumeric-comparator.version>1.4.1</alphanumeric-comparator.version>
 	</properties>
@@ -191,6 +192,11 @@
 			<groupId>info.picocli</groupId>
 			<artifactId>picocli</artifactId>
 			<version>4.3.2</version>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>bigwarp_fiji</artifactId>
+            <version>${bigwarp.version}</version>
 		</dependency>
 	</dependencies>
 
