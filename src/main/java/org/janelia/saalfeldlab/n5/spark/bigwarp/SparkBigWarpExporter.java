@@ -8,6 +8,8 @@ import java.util.concurrent.Callable;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.janelia.saalfeldlab.n5.Compression;
+import org.janelia.saalfeldlab.n5.DataType;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5DatasetDiscoverer;
 import org.janelia.saalfeldlab.n5.N5Reader;
@@ -127,16 +129,19 @@ public class SparkBigWarpExporter implements Callable< Void >
 		final N5Reader n5 = new N5Factory().openReader( n5Url );
 		final DatasetAttributes attributes = n5.getDatasetAttributes( n5Dataset );
 
+		final DatasetAttributes outAttributes = new DatasetAttributes(
+				outSz, attributes.getBlockSize(), attributes.getDataType(), attributes.getCompression());
+
 		/* create the output */
 		final N5Writer n5Writer = new N5Factory().openWriter( n5OutUrl );
-		n5Writer.createDataset( n5OutDataset, attributes );
+		n5Writer.createDataset( n5OutDataset, outAttributes );
 
-		/* create the grid for parallelization */
-		final List< long[][] > grid = Grid.create( attributes.getDimensions(), attributes.getBlockSize() );
+		/* create the output grid for parallelization */
+		final List< long[][] > grid = Grid.create( outAttributes.getDimensions(), outAttributes.getBlockSize() );
 
 		/* Sparkify it */
 		final JavaRDD< long[][] > rddGrid = sc.parallelize( grid );
-		
+
 		run( sc, n5Url, n5Dataset, n5OutUrl, n5OutDataset,
 				landmarksPath, transformTypeOption, 
 				interpTypeOption, outResolution, outOffset,
@@ -156,14 +161,17 @@ public class SparkBigWarpExporter implements Callable< Void >
 			final String interpTypeOption,
 			final double[] outResolution,
 			final double[] outOffset,
-			final JavaRDD<long[][]> rddGrid) throws IOException {
+			final JavaRDD<long[][]> rddGrid) throws IOException
+	{
 
+		final N5Reader n5Outer = Singleton.get(
+				n5Url + ".reader",
+				() -> new N5Factory().openReader(n5Url));
 
-//		final RandomAccessibleInterval<T> img = Singleton.get(
-//				n5Url + ":" + n5Dataset,
-//				() -> (RandomAccessibleInterval<T>)N5Utils.open(n5, n5Dataset));
-		
-		
+		final RandomAccessibleInterval<T> imgOuter = Singleton.get(
+				n5Url + ":" + n5Dataset,
+				() -> (RandomAccessibleInterval<T>)N5Utils.open(n5Outer, n5Dataset));
+
 //		final N5TreeNode node = new N5TreeNode( n5Dataset, false );
 //		N5DatasetDiscoverer.parseMetadata( n5, node, N5Importer.PARSERS, null );
 //
@@ -192,6 +200,10 @@ public class SparkBigWarpExporter implements Callable< Void >
 			final RandomAccessibleInterval<T> imgInner = Singleton.get(
 					n5Url + ":" + n5Dataset,
 					() -> (RandomAccessibleInterval<T>)N5Utils.open(n5Inner, n5Dataset));
+
+			final N5Writer n5Writer = Singleton.get(
+					n5OutUrl + ".writer",
+					() -> new N5Factory().openWriter(n5OutUrl));
 
 			final AffineTransform3D imgPixelToPhysical = Singleton.get(
 					n5Url + ":" + n5Dataset + ":physicalTransform",
@@ -237,7 +249,7 @@ public class SparkBigWarpExporter implements Callable< Void >
 			{
 				imgInterp = Views.interpolate( imgExt, new NearestNeighborInterpolatorFactory<>() );
 			}
-			
+
 			final RealTransformSequence totalTransform = new RealTransformSequence();
 			totalTransform.add( renderPixelToPhysical );
 			totalTransform.add( invXfm );
@@ -250,14 +262,10 @@ public class SparkBigWarpExporter implements Callable< Void >
 //			/* crop the block of interest */
 //			final IntervalView<T> block = Views.offsetInterval(cllcned, gridBlock[0], gridBlock[1]);
 
-			final N5Writer n5Writer = Singleton.get(
-					n5OutUrl + ".writer",
-					() -> new N5Factory().openWriter(n5OutUrl));
-
 			N5Utils.saveNonEmptyBlock(block, n5Writer, n5OutDataset, gridBlock[2], Util.getTypeFromInterval(block).createVariable());
 		});
 	}
-	
+
 	public static AffineTransform3D scaleTransform( double... res )
 	{
 		AffineTransform3D resolutionTransform = new AffineTransform3D();
@@ -266,7 +274,7 @@ public class SparkBigWarpExporter implements Callable< Void >
 
 		return resolutionTransform;
 	}
-	
+
 	public static AffineTransform3D offsetTransform( double... offset )
 	{
 		AffineTransform3D offsetTransform = new AffineTransform3D();
