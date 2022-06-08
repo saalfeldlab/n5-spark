@@ -83,8 +83,8 @@
 		<url>https://github.com/saalfeldlab/n5-spark/issues</url>
 	</issueManagement>
 	<ciManagement>
-		<system>Travis CI</system>
-		<url>https://travis-ci.org/saalfeldlab/n5-spark</url>
+		<system>GitHub Actions</system>
+		<url>https://github.com/saalfeldlab/n5-spark/actions</url>
 	</ciManagement>
 
 	<properties>
@@ -97,7 +97,7 @@
 		<license.copyrightOwners>Igor Pisarev, Stephan Saalfeld</license.copyrightOwners>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
-		<releaseProfiles>deploy-to-scijava</releaseProfiles>
+		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 		<args4j.version>2.33</args4j.version>
 		<n5.version>2.5.0</n5.version>
 		<n5-imglib2.version>4.0.0</n5-imglib2.version>
