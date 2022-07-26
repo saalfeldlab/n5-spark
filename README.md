@@ -1,4 +1,7 @@
-# N5 Spark [![Build Status](https://travis-ci.org/saalfeldlab/n5-spark.svg?branch=master)](https://travis-ci.org/saalfeldlab/n5-spark)
+[![Build Status](https://github.com/saalfeldlab/n5-spark/actions/workflows/build-main.yml/badge.svg)](https://github.com/saalfeldlab/n5-spark/actions/workflows/build-main.yml)
+
+# N5 Spark
+
 A collection of utilities for [N5](https://github.com/saalfeldlab/n5) datasets that can run on an Apache Spark cluster.
 
 Supported operations:
