@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>31.1.0</version>
+		<version>37.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -99,11 +99,12 @@
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 		<args4j.version>2.33</args4j.version>
-		<n5.version>2.5.1</n5.version>
-		<n5-imglib2.version>4.3.0</n5-imglib2.version>
-		<n5-ij.version>3.2.2</n5-ij.version>
-		<bigdataviewer-core.version>10.4.1</bigdataviewer-core.version>
+		<n5.version>3.2.0</n5.version>
+		<n5-imglib2.version>7.0.0</n5-imglib2.version>
+		<n5-ij.version>4.1.1</n5-ij.version>
+		<bigdataviewer-core.version>10.4.14</bigdataviewer-core.version>
 
+        <kryo.version>4.0.2</kryo.version>
 		<alphanumeric-comparator.version>1.4.1</alphanumeric-comparator.version>
 	</properties>
 
