@@ -34,7 +34,9 @@ import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.util.Singleton;
 import net.imglib2.cache.img.CachedCellImg;
+import net.imglib2.cache.ref.SoftRefLoaderCache;
 import net.imglib2.img.cell.Cell;
 import net.imglib2.img.cell.CellGrid;
 import net.imglib2.img.cell.LazyCellImg.LazyCells;
@@ -49,6 +51,8 @@ import net.imglib2.util.Pair;
 import net.imglib2.util.Util;
 import net.imglib2.util.ValuePair;
 import net.imglib2.view.Views;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
@@ -65,6 +69,7 @@ import org.kohsuke.args4j.Option;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -249,7 +254,15 @@ public class N5ToSliceTiffSpark
 		sparkContext.parallelize( sliceCoords, Math.min( sliceCoords.size(), MAX_PARTITIONS ) ).foreach( slice ->
 			{
 				final N5Reader n5Local = n5Supplier.get();
-				final CachedCellImg< T, ? > cellImg = N5SparkUtils.openWithBoundedCache( n5Local, datasetPath, 1 );
+				final URI readerURi = n5Local.getURI();
+				final String readerCacheKey = new URIBuilder(readerURi).setParameters(
+						new BasicNameValuePair("type", "reader"),
+						new BasicNameValuePair("group", "output"),
+						new BasicNameValuePair("dataset", datasetPath),
+						new BasicNameValuePair("call", "create-max-intensity-projection")
+				).toString();
+				final CachedCellImg<T, ?> cellImg = Singleton.get(readerCacheKey, () -> N5SparkUtils.openWithLoaderCache(n5, datasetPath, new SoftRefLoaderCache<>()));
+
 				final CellGrid cellGrid = cellImg.getCellGrid();
 				final long[] slicePos = new long[ cellImg.numDimensions() ], cellPos = new long[ cellImg.numDimensions() ];
 				slicePos[ sliceDimension.asInteger() ] = slice;

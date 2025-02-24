@@ -30,6 +30,7 @@ package org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +67,9 @@ public class N5ScalePyramidSpark
 			final String datasetPath,
 			final int[] downsamplingStepFactors ) throws IOException
 	{
-		final String outputGroupPath = ( Paths.get( datasetPath ).getParent() != null ? Paths.get( datasetPath ).getParent().toString() : "" );
+
+		final Path parentPath = Paths.get(datasetPath).getParent();
+		final String outputGroupPath = ( parentPath != null ? parentPath.toString() : "" );
 		return downsampleScalePyramid(
 				sparkContext,
 				n5Supplier,

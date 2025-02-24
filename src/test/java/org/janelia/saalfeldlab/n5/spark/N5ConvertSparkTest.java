@@ -89,7 +89,7 @@ public class N5ConvertSparkTest extends AbstractN5SparkTest
 				Optional.of( new int[] { 5, 1, 2 } ),
 				Optional.of( new Bzip2Compression() ),
 				Optional.of( DataType.INT8 ),
-				Optional.of( new ValuePair<>( new Double( -100 ), new Double( 70 ) ) )
+				Optional.of( new ValuePair<>( -100.0, 70.0 ) )
 			);
 
 		Assert.assertTrue( n5.datasetExists( convertedDatasetPath ) );
