@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import net.imglib2.algorithm.util.Singleton;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
@@ -184,7 +187,22 @@ public class N5OffsetDownsamplerSpark
 			final Interval targetInterval = new FinalInterval( targetMin, targetMax );
 
 			final N5Writer n5Local = n5Supplier.get();
-			final RandomAccessibleInterval< T > source = N5Utils.open( n5Local, inputDatasetPath );
+			final String writerCacheKey = new URIBuilder(n5Local.getURI())
+					.setParameters(
+							new BasicNameValuePair("type", "writer"),
+							new BasicNameValuePair("call", "n5-downsample-spark")
+					).toString();
+
+			final N5Writer n5Writer = Singleton.get(writerCacheKey, () -> n5Local);
+
+			final String imgCacheKey = new URIBuilder(n5Writer.getURI())
+					.setParameters(
+							new BasicNameValuePair("type", "writer"),
+							new BasicNameValuePair("dataset", inputDatasetPath),
+							new BasicNameValuePair("call", "n5-downsample-spark")
+					).toString();
+
+			final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> N5Utils.open( n5Writer, inputDatasetPath ));
 
 			// apply offset to source to align it with respect to the target block
 			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );
@@ -219,7 +237,7 @@ public class N5OffsetDownsamplerSpark
 			else
 				downsampleIntervalOutOfBoundsCheck( sourceBlock, targetBlock, downsamplingFactors, definedSourceBlockInterval );
 
-			N5Utils.saveNonEmptyBlock( targetBlock, n5Local, outputDatasetPath, blockGridPosition, defaultValue );
+			N5Utils.saveNonEmptyBlock( targetBlock, n5Writer, outputDatasetPath, blockGridPosition, defaultValue );
 		} );
 	}
 

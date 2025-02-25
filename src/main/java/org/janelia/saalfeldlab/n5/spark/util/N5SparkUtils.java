@@ -108,6 +108,14 @@ public class N5SparkUtils
 			final String dataset,
 			final int cacheSize ) throws IOException
 	{
+		return openWithLoaderCache( n5, dataset, new BoundedSoftRefLoaderCache<>(cacheSize));
+	}
+
+	public static final < T extends NativeType< T > > CachedCellImg< T, ? > openWithLoaderCache(
+			final N5Reader n5,
+			final String dataset,
+			final LoaderCache<Long, Cell<?>> loaderCache) throws IOException
+	{
 		final DatasetAttributes attributes = n5.getDatasetAttributes( dataset );
 		final long[] dimensions = attributes.getDimensions();
 		final int[] blockSize = attributes.getBlockSize();
@@ -120,8 +128,6 @@ public class N5SparkUtils
 		final T type;
 		final Cache< Long, Cell< ? > > cache;
 		final Set< AccessFlags > accessFlags = AccessFlags.setOf();
-
-		final LoaderCache< Long, Cell< ? > > loaderCache = new BoundedSoftRefLoaderCache<>( cacheSize );
 
 		switch ( attributes.getDataType() )
 		{

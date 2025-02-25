@@ -11,7 +11,7 @@
 
 	<groupId>org.janelia.saalfeldlab</groupId>
 	<artifactId>n5-spark</artifactId>
-	<version>3.7.5-SNAPSHOT</version>
+	<version>4.0.0-SNAPSHOT</version>
 
 	<name>N5 Spark</name>
 	<description>N5 Spark-based processing tools</description>
@@ -96,6 +96,11 @@
 		<license.organizationName>Saalfeld Lab</license.organizationName>
 		<license.copyrightOwners>Igor Pisarev, Stephan Saalfeld</license.copyrightOwners>
 
+		<scijava.jvm.version>17</scijava.jvm.version>
+		<maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+		<extra-enforcer-rules.version>1.9.0</extra-enforcer-rules.version>
+
+
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 		<args4j.version>2.33</args4j.version>
@@ -106,6 +111,9 @@
 
         <kryo.version>4.0.2</kryo.version>
 		<alphanumeric-comparator.version>1.4.1</alphanumeric-comparator.version>
+		<spark.version>3.5.4</spark.version>
+		<spark-core_2.12.version>${spark.version}</spark-core_2.12.version>
+		<jackson.version>2.15.4</jackson.version>
 	</properties>
 
 	<dependencies>
@@ -197,10 +205,6 @@
 			<artifactId>picocli</artifactId>
 			<version>4.3.2</version>
 		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-		</dependency>
 	</dependencies>
 
 	<repositories>
@@ -225,6 +229,12 @@
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
 					<configuration>
+						<argLine>
+							--add-exports java.base/sun.nio.ch=ALL-UNNAMED
+							--add-opens java.base/java.nio=ALL-UNNAMED
+							--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+							--add-opens java.base/java.util=ALL-UNNAMED
+						</argLine>
 						<runOrder>alphabetical</runOrder>
 					</configuration>
 				</plugin>
@@ -242,7 +252,7 @@
 				<dependency>
 					<groupId>org.apache.spark</groupId>
 					<artifactId>spark-core_2.12</artifactId>
-					<version>3.4.0</version>
+					<version>${spark-core_2.12.version}</version>
 					<scope>provided</scope>
 				</dependency>
 			</dependencies>
@@ -253,7 +263,7 @@
 				<dependency>
 					<groupId>org.apache.spark</groupId>
 					<artifactId>spark-core_2.12</artifactId>
-					<version>3.4.0</version>
+					<version>${spark-core_2.12.version}</version>
 				</dependency>
 			</dependencies>
 		</profile>

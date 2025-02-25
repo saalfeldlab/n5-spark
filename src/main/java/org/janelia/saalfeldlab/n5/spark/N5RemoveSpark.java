@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import net.imglib2.algorithm.util.Singleton;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
@@ -93,7 +96,20 @@ public class N5RemoveSpark
 			// iteratively find all leaves
 			while ( !nodesQueue.isEmpty() )
 			{
-				final Map< String, String[] > nodeToChildren = sparkContext.parallelize( nodesQueue, Math.min( nodesQueue.size(), MAX_PARTITIONS ) ).mapToPair( node -> new Tuple2<>( node, n5Supplier.get().list( node ) ) ).collectAsMap();
+				final Map< String, String[] > nodeToChildren = sparkContext
+						.parallelize( nodesQueue, Math.min( nodesQueue.size(), MAX_PARTITIONS ) )
+						.mapToPair( node -> {
+							final N5Writer n5Local = n5Supplier.get();
+							final String writerCacheKey = new URIBuilder(n5Local.getURI())
+									.setParameters(
+											new BasicNameValuePair("type", "writer"),
+											new BasicNameValuePair("call", "n5-remove-spark")
+									).toString();
+							final N5Writer n5Writer = Singleton.get(writerCacheKey, () -> n5Local);
+							return new Tuple2<>(node, n5Writer.list(node));
+						})
+						.collectAsMap();
+
 				nodesQueue.clear();
 				for ( final Entry< String, String[] > entry : nodeToChildren.entrySet() )
 				{
@@ -110,7 +126,20 @@ public class N5RemoveSpark
 			}
 
 			// delete inner files
-			sparkContext.parallelize( leaves, Math.min( leaves.size(), MAX_PARTITIONS ) ).foreach( leaf -> n5Supplier.get().remove( leaf ) );
+			sparkContext
+					.parallelize( leaves, Math.min( leaves.size(), MAX_PARTITIONS ) )
+					.foreach( leaf -> {
+						final N5Writer n5Local = n5Supplier.get();
+						final String writerCacheKey = new URIBuilder(n5Local.getURI())
+								.setParameters(
+										new BasicNameValuePair("type", "writer"),
+										new BasicNameValuePair("call", "n5-remove-spark")
+								).toString();
+						final N5Writer n5Writer = Singleton.get(writerCacheKey, () -> n5Local);
+						n5Writer.remove(leaf);
+					});
+
+			Singleton.clear();
 		}
 
 		// cleanup the directory tree

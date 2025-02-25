@@ -38,6 +38,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import net.imglib2.algorithm.util.Singleton;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.Compression;
@@ -186,15 +189,25 @@ public class SliceTiffToN5Spark
 			{
 				final ImagePlus imp = tiffReader.openTiff( tiffSliceFilepaths.get( sliceIndex ) );
 				final RandomAccessibleInterval< T > img = ( RandomAccessibleInterval< T > ) ImagePlusImgs.from( imp );
+				final String tmpWriterCacheKey = new URIBuilder(outputN5Supplier.get().getURI())
+						.setParameters(
+								new BasicNameValuePair("type", "writer"),
+								new BasicNameValuePair("dataset", tmpDataset),
+								new BasicNameValuePair("call", "slice-tiff-to-n5-spark")
+						).toString();
+
+				final N5Writer tmpWriter = Singleton.get(tmpWriterCacheKey, () -> outputN5Supplier.get());
+
 				N5Utils.saveNonEmptyBlock(
 						Views.addDimension( img, 0, 0 ),
-						outputN5Supplier.get(),
+						tmpWriter,
 						tmpDataset,
 						new long[] { 0, 0, sliceIndex },
 						Util.getTypeFromInterval( img ).createVariable()
 					);
 			}
 		);
+		Singleton.clear();
 
 		// resave the temporary dataset using the requested block size
 		final int[] processingBlockSize = { tmpBlockSize[ 0 ], tmpBlockSize[ 1 ], blockSize[ 2 ] }; // minimize number of reads of each temporary block
@@ -202,16 +215,37 @@ public class SliceTiffToN5Spark
 		final List< Tuple2< long[], long[] > > minMaxTuples = N5SparkUtils.toMinMaxTuples( Grids.collectAllContainedIntervals( dimensions, processingBlockSize ) );
 		sparkContext.parallelize( minMaxTuples, Math.min( minMaxTuples.size(), MAX_PARTITIONS ) ).foreach( minMaxTuple ->
 			{
-				final Interval interval = N5SparkUtils.toInterval( minMaxTuple );
 				final N5Writer n5Local = outputN5Supplier.get();
-				final RandomAccessibleInterval< T > tmpImg = N5Utils.open( n5Local, tmpDataset );
+				final String tmpReaderCacheKey = new URIBuilder(outputN5Supplier.get().getURI())
+						.setParameters(
+								new BasicNameValuePair("type", "reader"),
+								new BasicNameValuePair("dataset", tmpDataset),
+								new BasicNameValuePair("call", "slice-tiff-to-n5-spark")
+						).toString();
+
+				final RandomAccessibleInterval< T > tmpImg = Singleton.get(tmpReaderCacheKey, () -> N5Utils.open( n5Local, tmpDataset ));
+
+				final Interval interval = N5SparkUtils.toInterval( minMaxTuple );
 				final RandomAccessibleInterval< T > tmpImgCrop = Views.offsetInterval( tmpImg, interval );
+
+
+				final String tmpWriterCacheKey = new URIBuilder(outputN5Supplier.get().getURI())
+						.setParameters(
+								new BasicNameValuePair("type", "writer"),
+								new BasicNameValuePair("dataset", outputDataset),
+								new BasicNameValuePair("call", "slice-tiff-to-n5-spark")
+						).toString();
+
+				final N5Writer n5Writer = Singleton.get(tmpWriterCacheKey, () -> n5Local);
+
+
 				final CellGrid cellGrid = new CellGrid( dimensions, blockSize );
 				final long[] gridOffset = new long[ 3 ];
 				cellGrid.getCellPosition( Intervals.minAsLongArray( interval ), gridOffset );
-				N5Utils.saveNonEmptyBlock( tmpImgCrop, n5Local, outputDataset, gridOffset, Util.getTypeFromInterval( tmpImgCrop ) );
+				N5Utils.saveNonEmptyBlock( tmpImgCrop, n5Writer, outputDataset, gridOffset, Util.getTypeFromInterval( tmpImgCrop ) );
 			}
 		);
+		Singleton.clear();
 
 		// cleanup the temporary dataset
 		N5RemoveSpark.remove( sparkContext, outputN5Supplier, tmpDataset );
