@@ -6,7 +6,6 @@ import subprocess
 
 sys.dont_write_bytecode = True
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from jar_path_util import get_local_jar_path
-bin_path = get_local_jar_path()
+from jar_path_util import get_java_cmd_local
 
-subprocess.call(['java', '-Dspark.master=local[*]', '-cp', bin_path, 'org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5OffsetScalePyramidSpark'] + sys.argv[1:])
+subprocess.call(get_java_cmd_local() + ['org.janelia.saalfeldlab.n5.spark.downsample.scalepyramid.N5OffsetScalePyramidSpark'] + sys.argv[1:])
