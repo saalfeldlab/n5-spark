@@ -7,13 +7,14 @@ def get_provided_jar_path():
 	return get_jar_path('-provided')
 
 
-def get_java_cmd_local():
+def get_java_cmd_local(class_arg):
     return [ 'java',
         '--add-opens=java.base/java.nio=ALL-UNNAMED',
         '--add-opens=java.base/java.lang.invoke=ALL-UNNAMED',
         '--add-opens=java.base/java.util=ALL-UNNAMED',
         '--add-exports=java.base/sun.nio.ch=ALL-UNNAMED',
-        '-Dspark.master=local[*]', '-cp', get_local_jar_path() ]
+        '-Dspark.master=local[*]', '-cp', get_local_jar_path(),
+        class_arg]
 
 def get_jar_path(jar_suffix=None):
 	curr_script_dir = os.path.dirname(os.path.abspath(__file__))
