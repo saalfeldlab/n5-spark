@@ -202,7 +202,7 @@ public class N5OffsetDownsamplerSpark
 							new BasicNameValuePair("call", "n5-downsample-spark")
 					).toString();
 
-			final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> N5Utils.open( n5Writer, inputDatasetPath ));
+			final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> (RandomAccessibleInterval< T >)N5Utils.open( n5Writer, inputDatasetPath ));
 
 			// apply offset to source to align it with respect to the target block
 			final RandomAccessibleInterval< T > translatedSource = Views.translate( source, offset );

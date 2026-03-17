@@ -235,7 +235,7 @@ public class N5LabelDownsamplerSpark {
 									new BasicNameValuePair("call", "n5-downsample-spark")
 							).toString();
 
-					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> N5Utils.open( n5Writer, inputDatasetPath ));
+					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> (RandomAccessibleInterval< T >)N5Utils.open( n5Writer, inputDatasetPath ));
 					final RandomAccessibleInterval<T> sourceBlock = Views.offsetInterval(source, sourceInterval);
 
 					/* test if empty */
@@ -255,7 +255,7 @@ public class N5LabelDownsamplerSpark {
 
 					if (overwriteExisting) {
 						// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
+						N5Utils.deleteChunk(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
 					}
 
 					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition, defaultValue);

@@ -300,7 +300,7 @@ public class N5ConvertSpark
 			if ( overwriteExisting )
 			{
 				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-				N5Utils.deleteBlock( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
+				N5Utils.deleteChunk( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
 			}
 
 			N5Utils.saveNonEmptyBlock(
@@ -373,7 +373,7 @@ public class N5ConvertSpark
 			if ( overwriteExisting )
 			{
 				// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-				N5Utils.deleteBlock( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
+				N5Utils.deleteChunk( convertedSourceInterval, n5OutputSupplier.get(), outputDatasetPath );
 			}
 
 			N5Utils.saveNonEmptyBlock(
