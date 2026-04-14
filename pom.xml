@@ -96,7 +96,7 @@
 		<license.organizationName>Saalfeld Lab</license.organizationName>
 		<license.copyrightOwners>Igor Pisarev, Stephan Saalfeld</license.copyrightOwners>
 
-		<scijava.jvm.version>17</scijava.jvm.version>
+		<scijava.jvm.version>11</scijava.jvm.version>
 		<maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
 		<extra-enforcer-rules.version>1.9.0</extra-enforcer-rules.version>
 
@@ -105,15 +105,15 @@
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 		<args4j.version>2.33</args4j.version>
 
-		<n5.version>4.0.0-alpha-12-SNAPSHOT</n5.version>
+		<n5.version>4.0.0-alpha-12</n5.version>
 		<n5-aws-s3.version>4.4.0-alpha-9</n5-aws-s3.version>
 		<n5-blosc.version>2.0.0-alpha-4</n5-blosc.version>
 		<n5-google-cloud.version>5.2.0-alpha-7</n5-google-cloud.version>
-		<n5-hdf5.version>2.3.0-alpha-7-SNAPSHOT</n5-hdf5.version>
+		<n5-hdf5.version>2.3.0-alpha-7</n5-hdf5.version>
 		<n5-ij.version>4.5.0-alpha-8-SNAPSHOT</n5-ij.version>
-		<n5-imglib2.version>7.1.0-alpha-8-SNAPSHOT</n5-imglib2.version>
-		<n5-universe.version>2.4.0-alpha-9-SNAPSHOT</n5-universe.version>
-		<n5-zarr.version>2.0.0-alpha-8-SNAPSHOT</n5-zarr.version>
+		<n5-imglib2.version>7.1.0-alpha-8</n5-imglib2.version>
+		<n5-universe.version>2.4.0-alpha-9</n5-universe.version>
+		<n5-zarr.version>2.0.0-alpha-8</n5-zarr.version>
 		<n5-zstandard.version>2.0.0-alpha-4</n5-zstandard.version>
 
 		<bigdataviewer-core.version>10.4.14</bigdataviewer-core.version>

@@ -255,7 +255,7 @@ public class N5LabelDownsamplerSpark {
 
 					if (overwriteExisting) {
 						// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-						N5Utils.deleteChunk(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
+						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
 					}
 
 					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition, defaultValue);
