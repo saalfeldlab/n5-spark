@@ -77,6 +77,8 @@ public class ShardSparkTest {
 	int[] chunkSize = {32, 32};
 	int[] chunksPerDataset;
 	int chunkN;
+	int repeats = 1;
+
 	ArrayList<long[]> positions;
 
 	void initDerived() {
@@ -115,6 +117,7 @@ public class ShardSparkTest {
 				case "--shape":      test.shape     = parseLongArray(args[++i]); break;
 				case "--shard-size": test.shardSize = parseIntArray(args[++i]); break;
 				case "--chunk-size": test.chunkSize = parseIntArray(args[++i]); break;
+				case "--repeats": 	 test.repeats   = Integer.parseInt(args[++i]); break;
 				default: System.err.println("Unknown argument: " + args[i]);
 			}
 		}
@@ -172,15 +175,16 @@ public class ShardSparkTest {
 		final ArrayList<long[]> positions = this.positions;
 		final int chunksPerDim0 = this.chunksPerDataset[0];
 
-		sparkContext.parallelize( outputBlockIndexes, Math.min( outputBlockIndexes.size(), MAX_PARTITIONS ) ).foreach( i -> {
+		sparkContext.parallelize( outputBlockIndexes, Math.min( repeats * outputBlockIndexes.size(), MAX_PARTITIONS ) ).foreach( i -> {
 
 			final N5Writer n5 = n5OutputSupplier.get();
 			final DatasetAttributes attrs = n5.getDatasetAttributes( outputDatasetPath );
 
 			final long[] min = new long[]{0, 0};
 			final long[] dimensions = attrs.getDimensions();
-
-			n5.writeRegion(outputDatasetPath, attrs, min, dimensions, blockSupplierRow(i, chunkSize, chunkN), true);
+			final int row = i % chunksPerDim0;
+			System.out.println("write region exp " + i + "; row " + row);
+			n5.writeRegion(outputDatasetPath, attrs, min, dimensions, blockSupplierRow(row, chunkSize, chunkN), true);
 			validate(n5, outputDatasetPath, attrs, positions, chunksPerDim0);
 
 		});
