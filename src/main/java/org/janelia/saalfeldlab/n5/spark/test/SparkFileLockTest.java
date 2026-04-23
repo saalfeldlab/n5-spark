@@ -44,7 +44,7 @@ public class SparkFileLockTest {
 
 	String path;
 	int repeats = 1000;
-	int nWorkers = 8;
+	int numTasks = 8;
 
 	public static void main(final String... args) throws IOException {
 
@@ -56,6 +56,9 @@ public class SparkFileLockTest {
 				case "--repeats":
 				case "-n":
 					test.repeats   = Integer.parseInt(args[++i]); break;
+				case "--tasks":
+				case "-t":
+					test.numTasks   = Integer.parseInt(args[++i]); break;
 				default: System.err.println("Unknown argument: " + args[i]);
 			}
 		}
@@ -76,7 +79,7 @@ public class SparkFileLockTest {
 
 	public < I extends NativeType< I > & RealType< I > > void run(final JavaSparkContext sparkContext) throws IOException
 	{
-		final List<Integer> list = IntStream.range(0, nWorkers).boxed().collect(Collectors.toList());
+		final List<Integer> list = IntStream.range(0, numTasks).boxed().collect(Collectors.toList());
 		final String p = path;
 		final String N = Integer.toString(repeats);
 		sparkContext.parallelize(list).foreach( i -> {
