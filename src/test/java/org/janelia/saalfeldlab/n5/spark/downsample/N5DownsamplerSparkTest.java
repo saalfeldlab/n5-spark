@@ -41,6 +41,10 @@ import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.AbstractN5SparkTest;
+import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
+import org.janelia.saalfeldlab.n5.universe.N5Factory;
+import org.janelia.saalfeldlab.n5.universe.StorageFormat;
+import org.janelia.scicomp.n5.zstandard.ZstandardCompression;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -166,6 +170,47 @@ public class N5DownsamplerSparkTest extends AbstractN5SparkTest
 		Assert.assertArrayEquals( new int[] { ( int ) Util.round( sum * scale ) }, getArrayFromRandomAccessibleInterval( N5Utils.open( n5, downsampledDatasetPath ) ) );
 	}
 
+
+	@Test
+	public void testShardedDownsampling() throws IOException
+	{
+		final String zarr3Path = basePath + ".zarr";
+		final N5WriterSupplier zarr3Supplier = () -> new N5Factory().openWriter( StorageFormat.ZARR3, zarr3Path );
+
+		final long[] dimensions = { 32, 32, 32 };
+		final int[] blockSize = { 8, 8, 8 };
+		final int[] downsamplingFactors = { 2, 2, 2 };
+		final int[] chunksPerShard = { 2, 2, 2 };
+
+		final N5Writer n5 = zarr3Supplier.get();
+		final int[] data = new int[ ( int ) Intervals.numElements( dimensions ) ];
+		for ( int i = 0; i < data.length; ++i )
+			data[ i ] = i + 1;
+		N5Utils.save( ArrayImgs.ints( data, dimensions ), n5, datasetPath, blockSize, new ZstandardCompression() );
+
+		/* downsample the same data, both unsharded and sharded, to compare later */
+		N5DownsamplerSpark.downsample( sparkContext, zarr3Supplier, datasetPath, "downsampled-unsharded", downsamplingFactors, blockSize, null, false );
+		N5DownsamplerSpark.downsample( sparkContext, zarr3Supplier, datasetPath, "downsampled-sharded", downsamplingFactors, blockSize, chunksPerShard, false );
+
+		final long[] expectedOutputDimensions = new long[ dimensions.length ];
+		final int[] expectedShardSize = new int[ blockSize.length ];
+		for ( int d = 0; d < dimensions.length; ++d )
+		{
+			expectedOutputDimensions[ d ] = dimensions[ d ] / downsamplingFactors[ d ];
+			expectedShardSize[ d ] = chunksPerShard[ d ] * blockSize[ d ];
+		}
+
+		final DatasetAttributes shardedAttributes = n5.getDatasetAttributes( "downsampled-sharded" );
+		Assert.assertArrayEquals( expectedOutputDimensions, shardedAttributes.getDimensions() );
+		Assert.assertArrayEquals( blockSize, shardedAttributes.getChunkSize() );          // inner chunk
+		Assert.assertArrayEquals( expectedShardSize, shardedAttributes.getBlockSize() );  // shard = chunksPerShard * chunk
+
+		/* the sharded output should be identical to the unsharded output */
+		Assert.assertArrayEquals(
+				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, "downsampled-unsharded" ) ),
+				getArrayFromRandomAccessibleInterval( N5Utils.open( n5, "downsampled-sharded" ) )
+			);
+	}
 
 	private void createDataset( final N5Writer n5, final long[] dimensions, final int[] blockSize ) throws IOException
 	{
