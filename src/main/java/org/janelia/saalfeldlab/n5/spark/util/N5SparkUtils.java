@@ -6,13 +6,13 @@
  * %%
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -28,24 +28,21 @@
  */
 package org.janelia.saalfeldlab.n5.spark.util;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.util.Intervals;
 import scala.Tuple2;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class N5SparkUtils
 {
 	private N5SparkUtils() { }
 
-	public static List< Tuple2< long[], long[] > > toMinMaxTuples( final List< ? extends Interval > intervals )
+	public static List< Tuple2< long[], long[] > > toMinMaxTuples(final List< ? extends Interval > intervals )
 	{
-		return new ArrayList<>(
-				intervals.stream().map( N5SparkUtils::toMinMaxTuple ).collect( Collectors.toList() )
-			);
+		return intervals.stream().map(N5SparkUtils::toMinMaxTuple).collect(Collectors.toList());
 	}
 
 	public static Tuple2< long[], long[] > toMinMaxTuple( final Interval interval )

@@ -50,7 +50,7 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import bdv.export.Downsample;
+import org.janelia.saalfeldlab.n5.spark.util.Downsample;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
@@ -242,7 +242,7 @@ public class N5OffsetDownsamplerSpark
 	}
 
 	/**
-	 * Based on {@link bdv.export.Downsample}.
+	 * Based on {@link Downsample}.
 	 */
 	private static < T extends RealType< T > > void downsampleIntervalOutOfBoundsCheck(
 			final RandomAccessible< T > input,

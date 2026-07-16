@@ -28,7 +28,7 @@
  */
 package org.janelia.saalfeldlab.n5.spark.downsample;
 
-import bdv.export.Downsample;
+import org.janelia.saalfeldlab.n5.spark.util.Downsample;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
