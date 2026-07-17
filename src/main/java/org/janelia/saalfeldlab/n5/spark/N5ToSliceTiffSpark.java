@@ -58,6 +58,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSReader;
 import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.supplier.N5ReaderSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.N5SparkUtils;
 import org.janelia.saalfeldlab.n5.spark.util.SliceDimension;
@@ -261,7 +262,7 @@ public class N5ToSliceTiffSpark
 						new BasicNameValuePair("dataset", datasetPath),
 						new BasicNameValuePair("call", "create-max-intensity-projection")
 				).toString();
-				final CachedCellImg<T, ?> cellImg = Singleton.get(readerCacheKey, () -> N5SparkUtils.openWithLoaderCache(n5, datasetPath, new SoftRefLoaderCache<>()));
+				final CachedCellImg<T, ?> cellImg = Singleton.get(readerCacheKey, () -> (CachedCellImg<T, ?>)N5Utils.open(n5, datasetPath));
 
 				final CellGrid cellGrid = cellImg.getCellGrid();
 				final long[] slicePos = new long[ cellImg.numDimensions() ], cellPos = new long[ cellImg.numDimensions() ];

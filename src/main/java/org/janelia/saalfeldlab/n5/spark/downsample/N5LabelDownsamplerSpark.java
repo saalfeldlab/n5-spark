@@ -52,10 +52,13 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
+import org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes;
+import org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3KeyValueWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
+import org.janelia.scicomp.n5.zstandard.ZstandardCompression;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -159,6 +162,43 @@ public class N5LabelDownsamplerSpark {
 			final int[] blockSize,
 			final boolean overwriteExisting) throws IOException {
 
+		downsampleLabel(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				null,
+				overwriteExisting
+		);
+	}
+
+	/**
+	 * Downsamples the given input dataset with respect to the given downsampling factors, storing the output blocks
+	 * in shards of {@code chunksPerShard} chunks per axis. A {@code null} {@code chunksPerShard} writes an unsharded
+	 * dataset (identical to the other overloads). Sharding requires a zarr3 ({@link ZarrV3KeyValueWriter}) writer.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @param chunksPerShard number of chunks per shard per axis, or {@code null} for an unsharded output
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static <T extends NativeType<T> & IntegerType<T>> void downsampleLabel(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final int[] chunksPerShard,
+			final boolean overwriteExisting) throws IOException {
+
 		final N5Writer n5 = n5Supplier.get();
 		if (!n5.datasetExists(inputDatasetPath))
 			throw new IllegalArgumentException("Input N5 dataset " + inputDatasetPath + " does not exist");
@@ -189,22 +229,38 @@ public class N5LabelDownsamplerSpark {
 			}
 		}
 
-		n5.createDataset(
-				outputDatasetPath,
-				outputDimensions,
-				outputBlockSize,
-				inputAttributes.getDataType(),
-				inputAttributes.getCompression()
-		);
+		if (chunksPerShard != null) {
+			if (!(n5 instanceof ZarrV3KeyValueWriter))
+				throw new IllegalArgumentException("Sharded downsampling requires a ZarrV3 writer");
+			final int[] shardSize = new int[dim];
+			for (int d = 0; d < dim; ++d)
+				shardSize[d] = chunksPerShard[d] * outputBlockSize[d];
 
-		final CellGrid outputCellGrid = new CellGrid(outputDimensions, outputBlockSize);
+			n5.createDataset(
+					outputDatasetPath,
+					new ZarrV3DatasetAttributes(outputDimensions, shardSize, outputBlockSize, inputAttributes.getDataType(), new ZstandardCompression())
+			);
+		} else {
+			n5.createDataset(
+					outputDatasetPath,
+					outputDimensions,
+					outputBlockSize,
+					inputAttributes.getDataType(),
+					new ZstandardCompression()
+			);
+		}
+
+		/* the parallel-write unit is DatasetAttributes#getBlockSize: the shard for a sharded dataset, the chunk otherwise */
+		final int[] writeBlockSize = n5.getDatasetAttributes(outputDatasetPath).getBlockSize();
+
+		final CellGrid outputCellGrid = new CellGrid(outputDimensions, writeBlockSize);
 		final long numDownsampledBlocks = Intervals.numElements(outputCellGrid.getGridDimensions());
 		final List<Long> blockIndexes = LongStream.range(0, numDownsampledBlocks).boxed().collect(Collectors.toList());
 
 		sparkContext
 				.parallelize(blockIndexes, Math.min(blockIndexes.size(), MAX_PARTITIONS))
 				.foreach(blockIndex -> {
-					final CellGrid cellGrid = new CellGrid(outputDimensions, outputBlockSize);
+					final CellGrid cellGrid = new CellGrid(outputDimensions, writeBlockSize);
 					final long[] blockGridPosition = new long[cellGrid.numDimensions()];
 					cellGrid.getCellGridPositionFlat(blockIndex, blockGridPosition);
 
@@ -235,7 +291,7 @@ public class N5LabelDownsamplerSpark {
 									new BasicNameValuePair("call", "n5-downsample-spark")
 							).toString();
 
-					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> N5Utils.open( n5Writer, inputDatasetPath ));
+					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> (RandomAccessibleInterval< T >)N5Utils.open( n5Writer, inputDatasetPath ));
 					final RandomAccessibleInterval<T> sourceBlock = Views.offsetInterval(source, sourceInterval);
 
 					/* test if empty */
@@ -253,17 +309,23 @@ public class N5LabelDownsamplerSpark {
 					final RandomAccessibleInterval<T> targetBlock = new ArrayImgFactory<>(defaultValue).create(targetInterval);
 					downsampleLabel(sourceBlock, targetBlock, downsamplingFactors);
 
+					final DatasetAttributes outputAttributes = n5Writer.getDatasetAttributes(outputDatasetPath);
+					final int[] shardBlockSize = outputAttributes.getBlockSize();
+					final int[] innerChunkSize = outputAttributes.getChunkSize();
+					final long[] chunkGridOffset = new long[dim];
+					for (int d = 0; d < dim; ++d)
+						chunkGridOffset[d] = blockGridPosition[d] * (shardBlockSize[d] / innerChunkSize[d]);
+
 					if (overwriteExisting) {
 						// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
+						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, chunkGridOffset);
 					}
-
-					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition, defaultValue);
+					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, outputAttributes, chunkGridOffset, defaultValue);
 				});
 	}
 
 	/**
-	 * Based on {@link bdv.export.Downsample}.
+	 * Based on bdv.export.Downsample.
 	 */
 	private static <T extends IntegerType<T>> void downsampleLabel(
 			final RandomAccessible<T> input,

@@ -223,7 +223,7 @@ public class SliceTiffToN5Spark
 								new BasicNameValuePair("call", "slice-tiff-to-n5-spark")
 						).toString();
 
-				final RandomAccessibleInterval< T > tmpImg = Singleton.get(tmpReaderCacheKey, () -> N5Utils.open( n5Local, tmpDataset ));
+				final RandomAccessibleInterval< T > tmpImg = Singleton.get(tmpReaderCacheKey, () -> (RandomAccessibleInterval< T > )N5Utils.open( n5Local, tmpDataset ));
 
 				final Interval interval = N5SparkUtils.toInterval( minMaxTuple );
 				final RandomAccessibleInterval< T > tmpImgCrop = Views.offsetInterval( tmpImg, interval );

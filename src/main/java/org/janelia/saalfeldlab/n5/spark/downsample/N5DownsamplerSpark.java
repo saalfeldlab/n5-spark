@@ -28,7 +28,7 @@
  */
 package org.janelia.saalfeldlab.n5.spark.downsample;
 
-import bdv.export.Downsample;
+import org.janelia.saalfeldlab.n5.spark.util.Downsample;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
@@ -47,6 +47,8 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.janelia.saalfeldlab.n5.DatasetAttributes;
 import org.janelia.saalfeldlab.n5.N5FSWriter;
 import org.janelia.saalfeldlab.n5.N5Writer;
+import org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes;
+import org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3KeyValueWriter;
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils;
 import org.janelia.saalfeldlab.n5.spark.supplier.N5WriterSupplier;
 import org.janelia.saalfeldlab.n5.spark.util.CmdUtils;
@@ -176,6 +178,42 @@ public class N5DownsamplerSpark {
 			final int[] blockSize,
 			final boolean overwriteExisting) throws IOException {
 
+		downsample(
+				sparkContext,
+				n5Supplier,
+				inputDatasetPath,
+				outputDatasetPath,
+				downsamplingFactors,
+				blockSize,
+				null,
+				overwriteExisting);
+	}
+
+	/**
+	 * Downsamples the given input dataset with respect to the given downsampling factors, storing the output blocks in
+	 * shards of {@code chunksPerShard} chunks per axis. A {@code null} {@code chunksPerShard} writes an unsharded dataset
+	 * (identical to the other overloads). Sharding requires a zarr3 ({@link ZarrV3KeyValueWriter}) writer.
+	 *
+	 * @param sparkContext
+	 * @param n5Supplier
+	 * @param inputDatasetPath
+	 * @param outputDatasetPath
+	 * @param downsamplingFactors
+	 * @param blockSize
+	 * @param chunksPerShard number of chunks per shard per axis, or {@code null} for an unsharded output
+	 * @param overwriteExisting
+	 * @throws IOException
+	 */
+	public static <T extends NativeType<T> & RealType<T>> void downsample(
+			final JavaSparkContext sparkContext,
+			final N5WriterSupplier n5Supplier,
+			final String inputDatasetPath,
+			final String outputDatasetPath,
+			final int[] downsamplingFactors,
+			final int[] blockSize,
+			final int[] chunksPerShard,
+			final boolean overwriteExisting) throws IOException {
+
 		final N5Writer n5 = n5Supplier.get();
 		if (!n5.datasetExists(inputDatasetPath))
 			throw new IllegalArgumentException("Input N5 dataset " + inputDatasetPath + " does not exist");
@@ -206,13 +244,26 @@ public class N5DownsamplerSpark {
 			}
 		}
 
-		n5.createDataset(
-				outputDatasetPath,
-				outputDimensions,
-				outputBlockSize,
-				inputAttributes.getDataType(),
-				inputAttributes.getCompression()
-		);
+		if (chunksPerShard != null) {
+			if (!(n5 instanceof ZarrV3KeyValueWriter))
+				throw new IllegalArgumentException("Sharded downsampling requires a ZarrV3 writer");
+			final int[] shardSize = new int[dim];
+			for (int d = 0; d < dim; ++d)
+				shardSize[d] = chunksPerShard[d] * outputBlockSize[d];
+
+			n5.createDataset(
+					outputDatasetPath,
+					new ZarrV3DatasetAttributes(outputDimensions, shardSize, outputBlockSize, inputAttributes.getDataType(), inputAttributes.getCompression())
+			);
+		} else {
+			n5.createDataset(
+					outputDatasetPath,
+					outputDimensions,
+					outputBlockSize,
+					inputAttributes.getDataType(),
+					inputAttributes.getCompression()
+			);
+		}
 
 		// set the downsampling factors attribute
 		final int[] inputAbsoluteDownsamplingFactors = n5.getAttribute(inputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, int[].class);
@@ -221,14 +272,17 @@ public class N5DownsamplerSpark {
 			outputAbsoluteDownsamplingFactors[d] = downsamplingFactors[d] * (inputAbsoluteDownsamplingFactors != null ? inputAbsoluteDownsamplingFactors[d] : 1);
 		n5.setAttribute(outputDatasetPath, DOWNSAMPLING_FACTORS_ATTRIBUTE_KEY, outputAbsoluteDownsamplingFactors);
 
-		final CellGrid outputCellGrid = new CellGrid(outputDimensions, outputBlockSize);
+		/* the parallel-write unit is DatasetAttributes#getBlockSize: the shard for a sharded dataset, the chunk otherwise */
+		final int[] writeBlockSize = n5.getDatasetAttributes(outputDatasetPath).getBlockSize();
+
+		final CellGrid outputCellGrid = new CellGrid(outputDimensions, writeBlockSize);
 		final long numDownsampledBlocks = Intervals.numElements(outputCellGrid.getGridDimensions());
 		final List<Long> blockIndexes = LongStream.range(0, numDownsampledBlocks).boxed().collect(Collectors.toList());
 
 		sparkContext
 				.parallelize(blockIndexes, Math.min(blockIndexes.size(), MAX_PARTITIONS))
 				.foreach(blockIndex -> {
-					final CellGrid cellGrid = new CellGrid(outputDimensions, outputBlockSize);
+					final CellGrid cellGrid = new CellGrid(outputDimensions, writeBlockSize);
 					final long[] blockGridPosition = new long[cellGrid.numDimensions()];
 					cellGrid.getCellGridPositionFlat(blockIndex, blockGridPosition);
 
@@ -261,7 +315,7 @@ public class N5DownsamplerSpark {
 									new BasicNameValuePair("call", "n5-downsample-spark")
 							).toString();
 
-					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> N5Utils.open( n5Writer, inputDatasetPath ));
+					final RandomAccessibleInterval< T > source = Singleton.get(imgCacheKey, () -> (RandomAccessibleInterval< T > )N5Utils.open( n5Writer, inputDatasetPath ));
 					final RandomAccessibleInterval<T> sourceBlock = Views.offsetInterval(source, sourceInterval);
 
 					/* test if empty */
@@ -279,12 +333,19 @@ public class N5DownsamplerSpark {
 					final RandomAccessibleInterval<T> targetBlock = new ArrayImgFactory<>(defaultValue).create(targetInterval);
 					Downsample.downsample(sourceBlock, targetBlock, downsamplingFactors);
 
+					final DatasetAttributes outputAttributes = n5Writer.getDatasetAttributes(outputDatasetPath);
+					final int[] shardBlockSize = outputAttributes.getBlockSize();
+					final int[] innerChunkSize = outputAttributes.getChunkSize();
+					final long[] chunkGridOffset = new long[dim];
+					for (int d = 0; d < dim; ++d)
+						chunkGridOffset[d] = blockGridPosition[d] * (shardBlockSize[d] / innerChunkSize[d]);
+
 					if (overwriteExisting) {
 						// Empty blocks will not be written out. Delete blocks to avoid remnant blocks if overwriting.
-						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition);
+						N5Utils.deleteBlock(targetBlock, n5Writer, outputDatasetPath, chunkGridOffset);
 					}
 
-					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, blockGridPosition, defaultValue);
+					N5Utils.saveNonEmptyBlock(targetBlock, n5Writer, outputDatasetPath, outputAttributes, chunkGridOffset, defaultValue);
 				});
 	}
 
